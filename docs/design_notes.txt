@@ -1,0 +1,133 @@
+https://github.com/Andwerpz/LWJGLEngine
+https://github.com/Andwerpz/SmallProjectShowcase2
+
+stuff that is good
+- window system, it's just really nice
+- ObjectEditorWindow, it's very convenient to make a 'options' struct and then use reflection to automatically generate a editor UI
+
+stuff that is bad
+- the Model and Scene system need a rework, I feel like when writing this I assumed too much about the users rendering pipeline. 
+- wiring together custom rendering pipelines is pretty much just writing bare OpenGL
+- managing struct defs across pipeline components is very annoying 
+- managing GPU memory is very annoying
+- rendering 2D UI elements should really be streamlined, currently they're just hacked into the 3D rendering pipeline. 
+
+overall, I just want to make it easier to create arbitrary rendering pipelines. 
+also, connecting different rendering pipelines should be easier to do, like for example if someone writes a nice realtime PBR pipeline, 
+  I would like to be able to easily also have a fluid simulation rendering with it. 
+
+what sort of utilities should I be providing to the user, and what should I let the user implement themselves? 
+How can I not over-assume what the user is going to do, and how can I make the pipelines that the user produces more modular?
+
+
+
+
+
+it seems like the biggest issue with my engine is not that it assumes stuff, 
+  it's just that you had to use raw OpenGL if you didn't want to use the same assumptions that the engine uses 
+  as the engine didn't expose any useful abstractions apart from the ones that introduced the assumptions. 
+
+for example, Model assumes stuff like 
+- your model is a triangle mesh
+- your mesh has normals, tangents, bitangents
+- your model has some specific textures like albedo, normal
+- you want to use indexed rendering
+- your model is part of a Scene
+- you want to render your model with GL_TRIANGLES
+
+the PBR pipeline had to forego using Model just to inject its own textures into the rendering pipeline. 
+these assumptions should be introduced gradually, and ideally if you're not doing anything too invasive you 
+  should still have access to a good amount of utilities.
+
+
+what should the abstraction layers be?
+graphics library wrapper 
+  assume what graphics library to use
+render graph 
+  assume rendering consists of passes operating on 'resources'
+PBR renderer
+  assume some physically based surface model 
+
+most of my demo projects sit around the render graph layer 
+what should the render graph look like?
+a render graph should own both compute passes and resources
+resources can be either 
+- transient (completely owned by the render graph) 
+- persistent (not owned by the render graph)
+- output (produced by the render graph and used elsewhere)
+
+how should the render graph interact with physics updates?
+the render graph shouldn't do physics updates. 
+should probably have another 'render graph' to handle physics updates
+for example, a SPH render graph should take in nothing and output some buffers regarding particle positions and bucket information
+then the fluid render graph should take in the particle buffers and actually render the fluid
+this allows us to decouple physics updates from rendering
+
+should something like ComputeGraph and RenderGraph be different?
+what exactly would be the difference between the two
+would there be a more abstract graph? it seems like the two are doing relatively the same thing, it's just that the meaning of what they're doing is different. 
+it seems like 'RenderGraph' assumes we're using a graphics library, should I assume OpenGL is the rendering library, or should that be abstracted away by the graphics library wrapper
+
+what exactly is the difference between a compute graph and RenderGraph?
+it seems like we need some sort of general GPU computation graph, maybe name it GPUGraph. All it does is handle sequences of GPU operations
+RenderGraph should just be a wrapper around GPUGraph providing some convenient utilities 
+
+how should the wrapper around the graphics library look like?
+should probably have some abstract interface GraphicsBackend that gets inherited by OpenGLBackend, VulkanBackend, etc..
+
+how should the graphics library wrapper handle different operating systems?
+this shouldn't be the graphics library wrapper's responsibility, that's the responsibility of whatever underlying graphics library is being used. 
+
+how should the graphics library wrapper handle different ways of opening an OS window?
+hmm, maybe I'll just assume that we use GLFW + OpenGL for now. 
+I just want to stop the higher layers from knowing that OpenGL exists
+
+where does the game loop fit in? should I separate render vs physics?
+the game loop should probably not be for granted, it should be provided by some abstraction
+it's probably reasonable to separate update() from render()
+we can try to render() as fast as possible or cap it, while update() should be restricted to running at some fixed frequency 
+should we even have the notion of update() and render()?
+
+
+
+
+
+examples:
+gaussian splatting
+
+
+SPH water
+
+
+
+
+graphics library wrapper structs:
+Device : 
+  GraphicsDevice                # provides info and all the methods you can call 
+
+Resource :
+  Buffer
+  Texture
+
+Pipeline :
+  ShaderModule			            # a compiled shader unit
+  Pipeline 
+  ComputePipeline               # should configure workgroups and stuff 
+  GraphicsPipeline              # traditional triangular rasterizing graphics pipeline 
+
+Misc :
+  Fence
+  Query
+  Sampler
+
+
+
+
+
+
+
+
+
+
+
+
