@@ -110,7 +110,7 @@ Resource :
   Texture
 
 Pipeline :
-  ShaderModule			            # a compiled shader unit
+  Shader			                  # a compiled shader unit
   Pipeline 
   ComputePipeline               # should configure workgroups and stuff 
   GraphicsPipeline              # traditional triangular rasterizing graphics pipeline 

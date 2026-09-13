@@ -1,0 +1,10 @@
+WSL :
+sudo apt install \
+    pkg-config \
+    libxcursor-dev \
+    libxinerama-dev \
+    libxrandr-dev \
+    libxi-dev \
+    libx11-dev \
+    libwayland-dev \
+    libxkbcommon-dev

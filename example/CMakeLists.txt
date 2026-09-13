@@ -8,13 +8,17 @@ add_executable(example
 )
 
 # add engine as a subproject
-add_subdirectory(
-    ../engine
-    ${CMAKE_CURRENT_BINARY_DIR}/engine
-)
+add_subdirectory(../engine engine)
 
 # link against engine
 target_link_libraries(example
     PRIVATE
         engine
+)
+
+# copy res next to the executable
+add_custom_command(TARGET example POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_SOURCE_DIR}/res
+        $<TARGET_FILE_DIR:example>/res
 )

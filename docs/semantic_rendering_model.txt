@@ -1,0 +1,66 @@
+
+ok, seems like my first attempt at creating a unified graphics API has failed 
+the issue seems to be that i'm trying to unify them at too low a level
+lets take a step back and see what I really want to make. 
+
+the issue I had with LWGJLEngine was that the high level abstractions were too inflexible for me to do anything but render 3D triangle models 
+but then I had no lower level abstraction to fall back on, so I ended up just using raw OpenGL 
+using raw OpenGL is really annoying and easy to mess up if you're not careful 
+
+my experiments were mostly just implementing random rendering pipelines that I saw online 
+so probably a way to make implementing these pipelines easier would be nice 
+really, all I need is a way to define arbitrary rendering pipelines and have something just do all the dirty work for me 
+
+
+what is a 'rendering pipeline'?
+a rendering pipeline is just a program that takes in some input data (3D models, camera pos, etc ...) 
+and goes through some steps to turn it into a pretty image (2D array of pixels, really an array of bytes) 
+really, the difficult part is figuring out a way to utilize the GPU to do all the steps of the pipeline efficiently
+
+what should the inputs to a pipeline be?
+(what is useful to expose to the user?)
+- Buffers
+  - these should be modeled as arbitrary blocks of memory on the GPU 
+- Textures
+  - can probably expose several types of textures, and some universal things like mipmaps 
+  - the internal format of the texture can be important, so stuff like RGBA32F and RGB16UI
+- Uniforms?
+  - maybe shouldn't directly expose as 'uniforms'
+  - the idea is that they are the same across all invocations of some shader 
+
+should I explicitly model vertex arrays like in opengl?
+  when rendering 3D models, each vertex has a bunch of attributes like position, UV coord, normal, etc ...
+  each buffer holds one of these attributes, and then we feed opengl some extra metadata telling it how exactly to interpret 
+  each buffer in order to extract the per-vertex attributes 
+  it seems like the fundamental difference between these vertex arrays and normal buffers is that with normal buffers, 
+  each shader has access to the entire buffer, while with vertex arrays, each shader only has access to its assigned vertex 
+  I suppose that we could make our own triangle rasterization pipeline that doesn't use vertex arrays, but I feel 
+  like it would be way slower than whatever opengl has natively. 
+
+should I explicitly have 'graphics pipelines' that have (geometry -> vertex -> raster -> fragment) baked in?
+hmm, maybe a 'graphics pipeline' can be abstracted into its inputs and outputs 
+
+how is the pipeline going to figure out what buffers should be bound to what slots in order to match with what the shaders expect?
+  we can probably retrieve the shader interface using introspection (for now, assume this works) 
+  this should include all the input buffers and textures
+  specifically, we're interested in their names and the slots they are bound to 
+  the user should bind resources to those names, and the pipeline should use the name to figure out what underlying slot the resource needs to be bound to 
+  the pipeline can also do typechecking, stuff like you can't bind a buffer to a sampler2D
+
+what shader language should I use
+  hmm, maybe we don't need to force the usage of one language or another 
+  we can first compile the shader and then inspect the metadata of the compiled code 
+  not sure if we can mix and match GLSL and HLSL though 
+  we can probably compile GLSL and HLSL down into SPIR-V and then reflect it
+  
+
+
+so a 'shader' is just a program with named and typed inputs, outputs, and uniforms 
+for each input and output, the user should manually bind some resource to it by its name 
+for each uniform, the user should assign it some value by its name 
+a 'pipeline' is then a collection of shaders that run in some order determined by the user 
+
+
+
+
+

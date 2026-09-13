@@ -1,0 +1,239 @@
+#version 430 core
+
+//Pipeline (4)
+// - sort tile buffer
+
+//when profiling, found that sortPhase 2 actually takes up 80% of the time. 
+
+// optimizations: (in total, it was taking around 20 ms to sort 700k elements)
+// - don't load tiles from global buffer during sortPhase 1 (18 ms)
+// - pack tile_id and gaussian_depth into 4 bytes, so sizeof(Tile) is now 8 bytes (10 ms)
+// - compute globalHistogramPrefix once per workgroup in shared memory (8 ms)
+// - compute thread_histogram_offset alongside per-thread histograms (7.5 ms)
+// - read directly from global buffer during sortPhase 0 (6 ms)
+// - only compute tile buckets once during sortPhase 2 by storing them while building the thread histogram (5.8 ms)
+// - since threads only actually look at the tiles within their own ELEMENTS_PER_THREAD tile group during sortPhase 2, 
+//   forego loading tiles into shared memory and just load it into thread local memory. (5.6 ms)
+// - change ELEMENTS_PER_THREAD to 8 and replace sortPhase 1 with an actual parallel prefix scan (2.25 ms)
+
+layout (local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
+
+const int ELEMENTS_PER_THREAD = 8;
+const int THREADS_PER_BLOCK = int(gl_WorkGroupSize.x);
+const int K = 4;
+const int B = THREADS_PER_BLOCK * ELEMENTS_PER_THREAD;
+const int BUCKET_MASK = (1 << K) - 1;
+const int PREFIX_SCAN_BLOCK_SIZE = 64;
+
+uniform int nrGaussians;
+uniform int nrTiles;
+uniform int sortIteration;
+uniform int sortPhase;
+uniform int sweepPhase;
+
+struct Tile {
+	// tile_id should be in range [0, 65536)
+	// gaussian_depth should be quantized in range [0, 65536)
+	uint sort_key;		// (tile_id << 16) | (gaussian_depth << 0)
+	int gaussian_id;
+};
+
+layout (binding = 2) readonly restrict buffer tileBuffer1 {
+	Tile tileData1[];
+};
+
+layout (binding = 3) writeonly restrict buffer tileBuffer2 {
+	Tile tileData2[];
+};
+
+layout (binding = 4) restrict buffer blockHistogramBuffer {
+	int blockHistogramData[][1 << K];
+};
+
+layout (binding = 5) restrict buffer blockHistogramPrefixBuffer {
+	int blockHistogramPrefixData[][1 << K];
+};
+
+shared int localHistogramData[64][1 << K];
+shared int globalHistogramPrefix[1 << K];
+
+void main() {
+	int total_tiles = nrTiles;
+	int total_blocks = (total_tiles + B - 1) / B;
+	int global_id = int(gl_GlobalInvocationID.x);
+	int local_id = int(gl_LocalInvocationID.x);
+	int block_id = int(gl_WorkGroupID.x);
+	
+	int L = block_id * B;
+	int R = min(total_tiles, L + B);
+	
+	if(sortPhase == 0) {		
+		//compute per-thread histograms
+		for(int i = 0; i < (1 << K); i++) {
+			localHistogramData[local_id][i] = 0;
+		}
+		for(int i = 0; i < ELEMENTS_PER_THREAD; i++) {
+			if(L + local_id * ELEMENTS_PER_THREAD + i < R) {
+				uint bucket = (tileData1[L + local_id * ELEMENTS_PER_THREAD + i].sort_key >> (sortIteration * K)) & BUCKET_MASK;
+				localHistogramData[local_id][bucket] ++;
+			} 
+		}
+		barrier();
+		
+		//merge into per-block histogram and write to global memory
+		if(local_id < (1 << K)) {
+			int sum = 0;
+			for(int i = 0; i < THREADS_PER_BLOCK; i++) {
+				sum += localHistogramData[i][local_id];
+			}
+			blockHistogramData[block_id][local_id] = sum;
+		}
+	}
+	else if(sortPhase == 1) {
+		//for this phase, we'll have blocks of size 64
+		//every thread is responsible for managing 2 elements. 
+		if(sweepPhase == 0) {		//compute per-block prefix sums
+			if(false) {	//linear scan
+				if(local_id < (1 << K)) {
+					int sum = 0;
+					for(int i = 0; i < PREFIX_SCAN_BLOCK_SIZE; i++) {
+						int tmp = blockHistogramData[block_id * PREFIX_SCAN_BLOCK_SIZE + i][local_id];
+						blockHistogramData[block_id * PREFIX_SCAN_BLOCK_SIZE + i][local_id] = sum;
+						sum += tmp;
+					}
+					blockHistogramPrefixData[block_id][local_id] = sum;
+				}
+			}
+			else {		//upsweep/downsweep
+				//load into local memory
+				localHistogramData[local_id * 2 + 0] = blockHistogramData[block_id * PREFIX_SCAN_BLOCK_SIZE + local_id * 2 + 0];
+				localHistogramData[local_id * 2 + 1] = blockHistogramData[block_id * PREFIX_SCAN_BLOCK_SIZE + local_id * 2 + 1];
+				barrier();
+			
+				//upsweep
+				for(int ival = 1; ival < PREFIX_SCAN_BLOCK_SIZE; ival <<= 1) {
+					if((local_id & (ival - 1)) == (ival - 1)) {
+						for(int i = 0; i < (1 << K); i++) {
+							localHistogramData[local_id * 2 + 1][i] += localHistogramData[local_id * 2 + 1 - ival][i];
+						}
+					}
+					barrier();
+				}
+				
+				//downsweep
+				int sum = 0;
+				if(local_id < (1 << K)) {
+					sum = localHistogramData[PREFIX_SCAN_BLOCK_SIZE - 1][local_id];
+					localHistogramData[PREFIX_SCAN_BLOCK_SIZE - 1][local_id] = 0;
+				}
+				barrier();
+				
+				int tmp[1 << K];
+				for(int ival = (PREFIX_SCAN_BLOCK_SIZE >> 1); ival >= 1; ival >>= 1) {
+					if((local_id & (ival - 1)) == (ival - 1)) {
+						tmp = localHistogramData[local_id * 2 + 1];
+						for(int i = 0; i < (1 << K); i++) {
+							localHistogramData[local_id * 2 + 1][i] += localHistogramData[local_id * 2 + 1 - ival][i];
+						}
+						localHistogramData[local_id * 2 + 1 - ival] = tmp;
+					}
+					barrier();
+				}
+				
+				//write back to global memory
+				blockHistogramData[block_id * PREFIX_SCAN_BLOCK_SIZE + local_id * 2 + 0] = localHistogramData[local_id * 2 + 0];
+				blockHistogramData[block_id * PREFIX_SCAN_BLOCK_SIZE + local_id * 2 + 1] = localHistogramData[local_id * 2 + 1];
+				if(local_id < (1 << K)) {
+					blockHistogramPrefixData[block_id][local_id] = sum;
+				}
+			}
+		}
+		else if(sweepPhase == 1) {	//compute block prefix sums
+			//just do linear scan over every superblock
+			int total_superblocks = total_blocks / PREFIX_SCAN_BLOCK_SIZE + 1;
+			if(local_id < (1 << K) && block_id == 0) {
+				int sum = 0;
+				for(int i = 0; i < total_superblocks; i++) {
+					int tmp = blockHistogramPrefixData[i][local_id];
+					blockHistogramPrefixData[i][local_id] = sum;
+					sum += tmp;
+				}
+			}
+		}
+		else if(sweepPhase == 2) {	//add block prefix sums to all elements
+			for(int i = 0; i < (1 << K); i++) {
+				blockHistogramData[block_id * PREFIX_SCAN_BLOCK_SIZE + local_id * 2 + 0][i] += blockHistogramPrefixData[block_id][i];
+				blockHistogramData[block_id * PREFIX_SCAN_BLOCK_SIZE + local_id * 2 + 1][i] += blockHistogramPrefixData[block_id][i];
+			}
+		}
+	}
+	else if(sortPhase == 2) {
+		//load tiles from global memory
+		Tile threadTileData[ELEMENTS_PER_THREAD];
+		for(int i = 0; i < ELEMENTS_PER_THREAD; i++) {
+			if(L + local_id * ELEMENTS_PER_THREAD + i < R) {
+				threadTileData[i] = tileData1[L + local_id * ELEMENTS_PER_THREAD + i];
+			} 
+		}
+		
+		//compute per-thread histograms
+		// - also compute thread local element histogram offsets for when we do the actual scatter
+		uint thread_histogram_info[ELEMENTS_PER_THREAD];		// (offset << K) | (bucket << 0)
+		for(int i = 0; i < (1 << K); i++) {
+			localHistogramData[local_id][i] = 0;
+		}
+		for(int i = 0; i < ELEMENTS_PER_THREAD; i++) {
+			if(L + local_id * ELEMENTS_PER_THREAD + i < R) {
+				uint bucket = (threadTileData[i].sort_key >> (sortIteration * K)) & BUCKET_MASK;
+				thread_histogram_info[i] = (uint(localHistogramData[local_id][bucket]) << K) | (bucket << 0);
+				localHistogramData[local_id][bucket] ++;
+			} 
+		}
+		barrier();
+		
+		//do some prefix sums
+		// - take prefix sum of per-thread histograms
+		// - take prefix sum of global bucket totals
+		if(local_id < (1 << K)) {
+			int sum = 0;
+			for(int i = 0; i < THREADS_PER_BLOCK; i++) {
+				int cur = localHistogramData[i][local_id];
+				localHistogramData[i][local_id] = sum;
+				sum += cur;
+			}
+		}
+		else if(local_id == (1 << K)) {
+			globalHistogramPrefix[0] = 0;
+			for(int i = 1; i < (1 << K); i++) {
+				globalHistogramPrefix[i] = globalHistogramPrefix[i - 1] + blockHistogramData[total_blocks][i - 1];
+			}
+		}
+		barrier();
+		
+		//scatter to global tmp buffer
+		for(int i = 0; i < ELEMENTS_PER_THREAD; i++) {
+			if(L + local_id * ELEMENTS_PER_THREAD + i < R) {
+				//calc bucket
+				uint bucket = thread_histogram_info[i] & BUCKET_MASK;
+				
+				//where to move this tile to
+				int global_ind = 
+					globalHistogramPrefix[bucket] + 
+					blockHistogramData[block_id][bucket] + 
+					localHistogramData[local_id][bucket] + 
+					int(thread_histogram_info[i] >> K)
+				;
+				tileData2[global_ind] = threadTileData[i];
+			}
+		}
+	}	
+	
+}
+
+
+
+
+
+
+
+

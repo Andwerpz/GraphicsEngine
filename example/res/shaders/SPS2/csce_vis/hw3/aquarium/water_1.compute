@@ -1,0 +1,57 @@
+#version 430 core
+
+layout (local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
+
+struct Particle {
+	vec2 pos;
+	vec2 pred_pos;
+	vec2 vel;
+	int hash;
+};
+
+layout(binding = 0) buffer particleBuffer {
+	Particle[] particleData;
+};
+
+uniform float dt;
+
+uniform float smoothing_radius;
+uniform int hash_mod;
+uniform int LUT_P1;
+uniform int LUT_P2;
+uniform int LUT_P3;
+uniform int LUT_P4;
+uniform int LUT_P5;
+
+uniform float predict_delta_time;
+
+int computeHash(int x, int y) {
+	x += LUT_P1;
+	y += LUT_P2;
+	return abs(x * LUT_P3 + y * LUT_P4 + LUT_P5) % hash_mod;
+}
+
+int computeHash(ivec2 h) {
+	return computeHash(h.x, h.y);
+}
+
+int computeHash(vec2 pos) {
+	return computeHash(ivec2(floor(pos / smoothing_radius)));
+}
+
+void main() {
+	int particle_id = int(gl_GlobalInvocationID.x);
+	Particle p = particleData[particle_id];
+	
+	//check if we need to reset this particle
+	if(isinf(p.pos.x) || isnan(p.pos.x) || isinf(p.vel.x) || isnan(p.vel.x)) {
+		p.pos = vec2(0);
+		p.vel = vec2(0);
+	}
+	
+	p.pos += p.vel * dt;
+	p.pred_pos = p.pos + p.vel * predict_delta_time;
+	p.hash = computeHash(p.pred_pos);
+
+	particleData[particle_id] = p;
+}

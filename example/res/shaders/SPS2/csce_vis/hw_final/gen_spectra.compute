@@ -1,0 +1,134 @@
+#version 430 core
+layout (local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+
+layout(rgba32f, binding = 0) uniform image2D spectraTexture;
+layout(rgba32f, binding = 1) uniform image2D noiseTexture;
+layout(rgba32f, binding = 2) uniform image2D waveInfoTexture;
+
+uniform int spectra_sz;
+
+const float g = 9.81;
+const float pi = 3.14159265;
+const float sigma = 0.074;	//surface tension coeff
+const float rho = 1000.0;	//density of water
+
+uniform vec2 wind_dir;
+uniform float h;	//height of water in meters
+uniform float U;	//avg wind speed (m/s)
+uniform float F;	//fetch, length of area over which wind is acting on water
+uniform float omega_p;	//peak energy frequency
+uniform float multiplier;	//for debugging
+
+//per cascade
+uniform float length_scale;
+uniform float omega_min_cutoff;
+uniform float omega_max_cutoff;
+
+uniform float swell;
+uniform float spread_blend;
+
+float jonswap(float omega) {
+	float gamma = 3.3;	
+	float r = exp(-pow(omega - omega_p, 2.0) / (2.0 * sigma * sigma * omega_p * omega_p));
+	float alpha = 0.076 * pow(U * U / (F * g), 0.22);
+	float beta = 5.0 / 4.0;
+	float ans = (alpha * g * g) / pow(omega, 5.0);
+	ans *= exp(-beta * pow(omega_p / omega, 4.0));
+	ans *= pow(gamma, r);
+	return ans;
+}
+
+float dispersion(float k) {
+	return sqrt((g * k + (sigma / rho) * pow(k, 3.0)) * tanh(k * h));
+}
+
+float sech(float x) {
+	return 1.0 / cosh(x);
+}
+
+float dispersion_derivative(float k) {
+	float numer = h * (g * k + (sigma / rho) * pow(k, 3.0)) * pow(sech(k * h), 2.0) + pow(dispersion(k), 2.0);
+	float denom = 2.0 * dispersion(k);
+	return numer / denom;
+}
+
+float cos2_spread(vec2 k) {
+	float c = dot(normalize(k), wind_dir);
+	if(c <= 0) return 0;
+	return 2.0 / pi * c * c;
+}
+
+float flat_spread(vec2 k) {
+	return 1.0 / (2.0 * pi);
+}
+
+float lerp(float x1, float x2, float t) {
+	return (1.0 - t) * x1 + t * x2;
+}
+
+float ShortWavesFade(float kLength) {
+	float shortWavesFade = 0.05;
+	return exp(-shortWavesFade * shortWavesFade * kLength * kLength);
+}
+
+float NormalisationFactor(float s) {
+	float s2 = s * s;
+	float s3 = s2 * s;
+	float s4 = s3 * s;
+	if (s < 5) return -0.000564 * s4 + 0.00776 * s3 - 0.044 * s2 + 0.192 * s + 0.163;
+	else return -4.80e-08 * s4 + 1.07e-05 * s3 - 9.53e-04 * s2 + 5.90e-02 * s + 3.93e-01;
+}
+
+float Cosine2s(float theta, float s) {
+	return NormalisationFactor(s) * pow(abs(cos(0.5 * theta)), 2 * s);
+}
+
+float SpreadPower(float omega, float peakOmega) {
+	if (omega > peakOmega) return 9.77 * pow(abs(omega / peakOmega), -2.5);
+	else return 6.97 * pow(abs(omega / peakOmega), 5);
+}
+
+float DirectionSpectrum(float theta, float omega, vec2 k) {
+	float wind_theta = atan(wind_dir.y, wind_dir.x);
+	float s = SpreadPower(omega, omega_p) + 16.0 * tanh(min(omega / omega_p, 20.0)) * swell * swell;
+	return lerp(cos2_spread(k), Cosine2s(theta - wind_theta, s), spread_blend);
+}
+
+void main() {
+	ivec2 tex_coord = ivec2(int(gl_GlobalInvocationID.x), int(gl_GlobalInvocationID.y));
+	
+	float delta_k = 2.0 * pi / length_scale;
+	vec2 k = vec2(tex_coord.x, tex_coord.y);
+	k -= spectra_sz / 2.0;
+	k *= delta_k;
+	float wavenumber = length(k);
+	float omega = dispersion(wavenumber);
+	float theta = atan(k.y, k.x);
+	
+	if(omega_min_cutoff < omega && omega < omega_max_cutoff) {
+		float domega_dk = dispersion_derivative(wavenumber);
+		
+		float energy = jonswap(omega);
+		float spread = DirectionSpectrum(theta, omega, k);
+		//float spread = flat_spread(k);
+		float fade = ShortWavesFade(wavenumber);
+		
+		float spectrum = energy * spread * fade;
+		
+		float s = sqrt(2.0 * spectrum * domega_dk / wavenumber * delta_k * delta_k);
+		s *= multiplier;
+		s /= length_scale;
+		vec4 ret = vec4(0, 0, 0, 1);
+		ret.x = s * imageLoad(noiseTexture, tex_coord).x;
+		ret.y = s * imageLoad(noiseTexture, tex_coord).y;
+		if(!(tex_coord.x == 67 && tex_coord.y == 66)) {
+			//ret *= 0;
+		}
+		imageStore(spectraTexture, tex_coord, ret);
+		imageStore(waveInfoTexture, tex_coord, vec4(k.x, 1.0 / wavenumber, k.y, omega));
+	}
+	else {
+		imageStore(spectraTexture, tex_coord, vec4(0));
+		imageStore(waveInfoTexture, tex_coord, vec4(k.x, 1.0, k.y, 0));
+	}
+}
