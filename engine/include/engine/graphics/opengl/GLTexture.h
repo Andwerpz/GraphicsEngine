@@ -1,36 +1,37 @@
 #pragma once
 #include <cstdint>
 #include <math.h>
+#include <glad/glad.h>
 
 namespace engine::graphics::opengl {
 
-// a Texture represents some memory on the GPU 
+// a GLTexture represents some memory on the GPU 
 // the structure of the memory is determined by its type and format
 
-// a TextureView represents one way of sampling a Texture 
-// TextureViews can be used in graphics pipelines 
+class OpenGLGraphicsDevice;
 
-class GraphicsDevice;
-
-enum class TextureType {
+enum class GLTextureType {
     D1,
     D2,
     D3,
     Cube,
 };
 
-enum class TextureFormat {
+enum class GLTextureFormat {
     RGBA32F,
     RGBA16F,
 };
 
-class Texture {
+class GLTexture {
 public:
-    TextureType get_type() const {
+    GLTexture(GLTexture&&);
+    ~GLTexture(); 
+
+    GLTextureType get_type() const {
         return type;
     }
 
-    TextureFormat get_format() const {
+    GLTextureFormat get_format() const {
         return format;
     }
 
@@ -54,19 +55,27 @@ public:
     uint64_t get_size(uint32_t mip_level) const;
 
 private:
-    friend class GraphicsDevice;
+    friend class OpenGLGraphicsDevice;
 
-    // opaque handle managed by the underlying graphics API
-    uint64_t handle;
+    GLTexture(OpenGLGraphicsDevice& device, GLuint handle, GLTextureType type, GLTextureFormat format, uint32_t width, uint32_t height, uint32_t depth, uint32_t mip_levels) :
+        device(device), handle(handle), type(type), format(format), width(width), height(height), depth(depth), mip_levels(mip_levels) {}
 
-    // the device that created this buffer
-    GraphicsDevice* device;
+    GLTexture() = delete;
+    GLTexture(const GLTexture&) = delete;
+    GLTexture& operator=(const GLTexture&) = delete;
+    GLTexture& operator=(GLTexture&&) = delete;
+
+    // the device that created this texture
+    OpenGLGraphicsDevice& device;
+
+    // OpenGL resource handle
+    GLuint handle;
 
     // what sort of texture is this
-    TextureType type;
+    GLTextureType type;
 
     // specifies how the texture is stored in GPU memory
-    TextureFormat format;
+    GLTextureFormat format;
 
     // (x, y, z) texture dimensions
     uint32_t width;
@@ -75,8 +84,6 @@ private:
 
     // number of mipmap levels 
     uint32_t mip_levels;
-
-    ~Texture();
 };
 
 class TextureView {

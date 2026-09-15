@@ -6,7 +6,7 @@ struct GLFWwindow;
 
 namespace engine::graphics::opengl {
 
-// represents an OS window 
+// represents an GLFW OS window 
 
 class Window {
 public:

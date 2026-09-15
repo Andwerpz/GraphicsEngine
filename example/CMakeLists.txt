@@ -16,9 +16,23 @@ target_link_libraries(example
         engine
 )
 
-# copy res next to the executable
-add_custom_command(TARGET example POST_BUILD
+# copy res whenever any resource file changes
+file(GLOB_RECURSE RES_FILES CONFIGURE_DEPENDS
+    ${CMAKE_SOURCE_DIR}/res/*
+)
+
+add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/res.stamp
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_SOURCE_DIR}/res
         $<TARGET_FILE_DIR:example>/res
+    COMMAND ${CMAKE_COMMAND} -E touch
+        ${CMAKE_CURRENT_BINARY_DIR}/res.stamp
+    DEPENDS ${RES_FILES}
 )
+
+add_custom_target(copy_res ALL
+    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/res.stamp
+)
+
+add_dependencies(example copy_res)

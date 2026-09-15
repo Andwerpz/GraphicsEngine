@@ -31,10 +31,13 @@ file(GLOB_RECURSE ENGINE_SOURCES
 add_library(engine STATIC 
     ${ENGINE_SOURCES}
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/glad/src/glad.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/spirv_reflect/spirv_reflect.c
 )
 
 # make stuff available for users to include
 target_include_directories(engine
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/third_party/spirv_reflect
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include
         ${CMAKE_CURRENT_SOURCE_DIR}/third_party/glad/include
@@ -45,5 +48,8 @@ target_link_libraries(engine
     PRIVATE 
         glfw 
         OpenGL::GL
-        ${SHADERC_LIBRARY}
+        shaderc_combined
+        glslang
+        SPIRV-Tools-opt
+        SPIRV-Tools
 )

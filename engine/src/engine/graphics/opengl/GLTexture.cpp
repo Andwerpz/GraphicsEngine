@@ -1,19 +1,31 @@
-#include <engine/graphics/opengl/Texture.h>
-#include <engine/graphics/opengl/GraphicsDevice.h>
+#include <engine/graphics/opengl/GLTexture.h>
+#include <engine/graphics/opengl/OpenGLGraphicsDevice.h>
 #include <cassert>
 
 namespace engine::graphics::opengl {
 
-uint64_t Texture::get_size(uint32_t mip_level) const {
+GLTexture::GLTexture(GLTexture&& other) :
+device(other.device), handle(other.handle), type(other.type), format(other.format), 
+width(other.width), height(other.height), depth(other.depth), mip_levels(other.mip_levels) {
+    other.handle = 0;
+}
+
+GLTexture::~GLTexture() {
+    if(handle != 0) {
+        device.gl_delete_texture(handle);
+    }
+}
+
+uint64_t GLTexture::get_size(uint32_t mip_level) const {
     assert(mip_level < mip_levels);
 
     // determine size of each pixel
     uint64_t px_size;
     switch(format) {
-    case TextureFormat::RGBA32F:
+    case GLTextureFormat::RGBA32F:
         px_size = 4 * 4;
         break;
-    case TextureFormat::RGBA16F:
+    case GLTextureFormat::RGBA16F:
         px_size = 2 * 4;
         break;
     default:
@@ -33,9 +45,7 @@ uint64_t Texture::get_size(uint32_t mip_level) const {
     return px_size * nr_pixels;
 }
 
-Texture::~Texture() {
-    device->delete_texture(handle);
-}
+
 
 }
 
