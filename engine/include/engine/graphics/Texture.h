@@ -1,0 +1,96 @@
+#pragma once
+#include "Resource.h"
+#include <cstdint>
+#include <math.h>
+
+namespace engine::graphics {
+
+// a Texture represents some memory on the GPU 
+// the structure of the memory is determined by its type and format
+
+enum class TextureType {
+    D1,
+    D2,
+    D3,
+    Cube,
+};
+
+// specifies the logical texel format
+enum class TextureFormat {
+    RGBA16F,
+    RGBA32F,
+    Depth32F,
+};
+
+class Texture : public Resource {
+public:
+    Texture(Texture&& other);
+    virtual ~Texture() = 0;
+
+protected:
+    Texture(
+        TextureType type, 
+        TextureFormat format, 
+        uint32_t width, 
+        uint32_t height, 
+        uint32_t depth, 
+        uint32_t mip_levels
+    );
+
+    // what sort of texture is this
+    TextureType type;
+
+    // specifies how the texture is stored in GPU memory
+    TextureFormat format;
+
+    // (x, y, z) texture dimensions
+    uint32_t width;
+    uint32_t height;
+    uint32_t depth;
+
+    // number of mipmap levels 
+    uint32_t mip_levels;
+
+public:
+    TextureType get_type() const {
+        return type;
+    }
+
+    TextureFormat get_format() const {
+        return format;
+    }
+
+    // get the dimensions of a specified mip level
+    uint32_t get_width(uint32_t mip_level = 0) const {
+        return std::max(1u, width >> mip_level);
+    }
+    uint32_t get_height(uint32_t mip_level = 0) const {
+        return std::max(1u, height >> mip_level);
+    }
+    uint32_t get_depth(uint32_t mip_level = 0) const {
+        return std::max(1u, depth >> mip_level);
+    }
+
+    uint32_t get_mip_levels() const {
+        return mip_levels;
+    }
+
+    // returns the size in bytes of the specified mip level
+    // for a cubemap, this is the size of one face at the specified mip level
+    uint64_t get_size(uint32_t mip_level) const;
+
+    // upload data to replace whatever was already in the texture
+    // data needs to contain enough data to replace the entire specified mip level
+    // you can figure out the size of data needed by using get_size(mip_level)
+    virtual void upload_data(
+        const void* data,
+        uint32_t mip_level = 0,
+        uint32_t cube_face = 0
+    ) = 0;
+
+    // generates mipmaps using mip level 0 as the base
+    // replaces all other mip layers
+    virtual void generate_mipmaps() = 0;
+};
+
+}

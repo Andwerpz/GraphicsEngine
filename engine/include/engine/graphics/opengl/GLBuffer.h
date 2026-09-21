@@ -2,11 +2,11 @@
 #include <cstdint>
 #include <glad/glad.h>
 
+#include "../Buffer.h"
+
 namespace engine::graphics::opengl {
 
-// a GLBuffer represents some contiguous memory resource on the GPU
-
-class OpenGLGraphicsDevice;
+class GLGraphicsDevice;
 
 // what sort of thing is this buffer meant to be used for?
 enum class GLBufferUsage {
@@ -16,30 +16,38 @@ enum class GLBufferUsage {
     Storage,    // general shader readable/writable buffer
 };
 
-// memory access capabilities for CPU
-enum class GLBufferMemory : uint64_t {
-    Read            = 1 << 0,
-    Write           = 1 << 1,
-};
+class GLBuffer : public engine::graphics::Buffer {
+    friend class GLGraphicsDevice;
+    using BufferMemory = engine::graphics::BufferMemory;
 
-class GLBuffer {
 public:
     GLBuffer(GLBuffer&&);
-    ~GLBuffer();
+    ~GLBuffer() override;
 
-    uint64_t get_size() const {
-        return size;
+    GLuint get_handle() {
+        return handle;
     }
 
-    GLBufferMemory get_memory() const {
-        return memory;
-    }
+    void upload_data(
+        const void* data,
+        uint64_t size,
+        uint64_t offset = 0
+    ) override;
+
+    void copy_data(
+        Buffer& other,
+        uint64_t size,
+        uint64_t src_offset,
+        uint64_t dst_offset
+    ) override;
 
 private:
-    friend class OpenGLGraphicsDevice;
-
-    GLBuffer(OpenGLGraphicsDevice& device, GLuint handle, uint64_t size, GLBufferMemory memory) :
-        device(device), handle(handle), size(size), memory(memory) {}
+    GLBuffer(
+        uint64_t size, 
+        BufferMemory memory, 
+        GLGraphicsDevice& device, 
+        GLuint handle
+    );
 
     GLBuffer() = delete;
     GLBuffer(const GLBuffer&) = delete;
@@ -47,16 +55,10 @@ private:
     GLBuffer& operator=(GLBuffer&&) = delete;
 
     // the device that created this buffer
-    OpenGLGraphicsDevice& device;
+    GLGraphicsDevice& device;
 
     // OpenGL resource handle
     GLuint handle;
-
-    // the size in bytes 
-    uint64_t size;
-
-    // the sort of memory operations the driver should expect this buffer to be used for
-    GLBufferMemory memory;
 };
 
 }

@@ -1,34 +1,36 @@
 #pragma once
 #include <cstdint>
 #include <glad/glad.h>
+#include <vector>
+
+#include "../Shader.h"
 
 namespace engine::graphics::opengl {
 
 // a GLShader represents some compiled code on the GPU 
-// the type of a shader determines what sort of pipelines it can participate in, and in what stages
 
-class OpenGLGraphicsDevice;
+class GLGraphicsDevice;
 
-enum class GLShaderType {
-    Vertex,
-    Fragment,
-    Compute,
-};
+class GLShader : public engine::graphics::Shader {
+    friend class GLGraphicsDevice;
+    using ShaderStage = engine::graphics::ShaderStage;
 
-class GLShader {
 public:
     GLShader(GLShader&&);
     ~GLShader();
 
-    GLShaderType get_type() const {
-        return type;
+    GLuint get_handle() {
+        return handle;
     }
 
 private:
-    friend class OpenGLGraphicsDevice;
-
-    GLShader(OpenGLGraphicsDevice& device, GLuint handle, GLShaderType type) :
-        device(device), handle(handle), type(type) {}
+    GLShader(
+        ShaderStage stage,
+        std::string source_code,
+        std::vector<uint32_t> spirv_code,
+        GLGraphicsDevice& device, 
+        GLuint handle
+    );
 
     GLShader() = delete;
     GLShader(const GLShader&) = delete;
@@ -36,14 +38,10 @@ private:
     GLShader& operator=(GLShader&&) = delete;
 
     // the device that created this shader
-    OpenGLGraphicsDevice& device;
+    GLGraphicsDevice& device;
 
     // OpenGL resource handle
     GLuint handle;
-
-    // what sort of shader is this
-    // used by pipelines to make sure that you're giving them valid shaders 
-    GLShaderType type;
 };
 
 }

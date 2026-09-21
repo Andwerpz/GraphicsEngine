@@ -1,0 +1,231 @@
+hmm, what sort of utilities would I like??
+
+arbitrary rendering pipelines
+easy GPU resource management
+
+the vast majority of rendering pipelines I use are either 
+- vertex + fragment shader 
+- compute shader
+
+the vast majority of GPU resources I use are 
+- buffers
+- textures
+
+drawArrays
+drawElements
+drawArraysInstanced
+drawElementsInstanced
+
+hmm, maybe should have index and instance buffers
+
+
+
+
+class Resource {
+	// nothing
+};
+
+enum class TextureType {
+	Texture1D,
+	Texture2D,
+	Texture3D,
+	Cubemap,
+};
+
+class Texture : public Resource {
+	TextureType type;
+};
+
+enum class BufferType {
+	Vertex,
+	Index,
+	Uniform,
+};
+
+class Buffer : public Resource {
+	BufferType type;
+};
+
+enum class ShaderType {
+	Vertex,
+	Fragment,
+	Compute,
+};
+
+class ShaderInterface {
+	std::vector<ShaderInterfaceVariable> inputs;
+	std::vector<ShaderInterfaceVariable> outputs;
+	std::vector<ShaderResource> resources;
+
+	// will check that the left outputs match with the right inputs, and resources don't overlap 
+	//   if a discrepancy is detected, should be a runtime error 
+	// the generated shader interface will have the left inputs, right outputs, and both resources 
+	static ShaderInterface unify(ShaderInterface& left, ShaderInterface& right);
+};
+
+class Shader {
+	ShaderType type;
+	ShaderInterface interface;
+};
+
+
+class ProgramType {
+	Rendering,	// vertex + fragment shader
+	Compute,	// compute shader
+};
+
+
+// hmm, Program should be polymorphic on both type and graphics API?
+// should it be Program -> Type -> API or Program -> API -> Type 
+// eventually, Programs should be factories for ProgramInvocations 
+// a ProgramInvocation should really be the container that actually knows how to execute a Program 
+// so maybe, Programs should just have a ProgramType and it should be ProgramInvocations that are polymorphic on both type and API 
+// hmm, should it be Type -> API or API -> Type 
+// I would lean towards Type -> API, more abstract inheritance should be at the top 
+
+// a Program should be a container for the code (shaders) required to execute the action 
+class Program {
+protected:
+	// unified interface of all shaders of this program 
+	ShaderInterface interface;
+
+public:
+    // should make sure that the sequence of shaders actually form a valid program 
+    virtual void validate() = 0;
+};
+
+class RenderingProgram : public Program {
+public:
+	// generate invocation 
+	virtual RenderingProgramInvocation generate_invocation() = 0;
+};
+
+class OpenGLRenderingProgram : public RenderingProgram {
+private:
+	// stuff related to underlying graphics API 
+	OpenGLGraphicsDevice& device;
+	GLuint handle;
+
+public:
+	// generate invocation 
+	OpenGLRenderingProgramInvocation generate_invocation() override;
+};
+
+// a ProgramInvocation is a container relating a Program and the resources required to run the program 
+// is it useful to have all the different types of program invocations inherit from a base class?
+class ProgramInvocation {
+protected:
+	// bound resources to all shaders in this program
+	struct ResourceBinding {
+		Resource& resource;
+		uint32_t set;
+		uint32_t binding;
+	};
+	std::vector<ResourceBinding> resources;
+
+public:
+    // should make sure that the resources contained here can actually be used to invoke the given program
+    // should only be able to invoke after validating 
+    // once validated, you won't be able to change any resources 
+    virtual void validate() = 0;
+};
+
+// everything required to invoke a rendering program
+class RenderingProgramInvocation : public ProgramInvocation {
+protected:
+	// how to assign each element in the bound vertex buffer
+	enum class InputRate {
+		Vertex,		// every element goes to a different vertex
+		Instance,	// every element goes to a different instance
+	};
+
+    // how each vertex attribute element should be interpreted
+	enum class VertexFormat {
+		Float32x1,
+        Float32x2,
+        Float32x3,
+        Float32x4,
+	};
+
+    // how each index element should be interpreted
+	enum class IndexFormat {
+        UInt16,
+		UInt32,
+	};
+
+	// mapping a vertex buffer to an input interface variable
+	struct VertexAttributeBinding {
+		Buffer& buffer;         // what buffer to use 
+		uint32_t location;      // what interface variable to bind to 
+		uint32_t offset;        // byte of the first element
+		uint32_t stride;        // bytes between the start of each element
+		InputRate rate;         // how to map elements
+		VertexFormat format;    // how to interpret elements
+	};
+	std::vector<VertexBufferBinding> attribute_bindings;
+
+	// optionally bind an index buffer for indexed rendering
+	struct IndexBufferBinding {
+		Buffer& buffer;
+		IndexFormat format;
+	};
+	std::optional<Buffer&> index_buffer;
+
+    // mapping a texture to an output interface variable
+    struct TextureOutputBinding {
+        Texture& texture;       // what texture to use 
+        uint32_t location;
+    };
+    std::vector<TextureOutputBinding> output_textures;
+
+public:
+	// invoke this program 
+	virtual void draw(uint32_t nr_elements, uint32_t nr_instances) = 0;
+};
+
+class OpenGLRenderingProgramInvocation : public RenderingProgramInvocation {
+private:
+	// underlying graphics API 
+	OpenGLGraphicsDevice& device;
+
+	// underlying program 
+	OpenGLRenderingProgram& program;
+
+public:
+	// invoke this program 
+	void draw(uint32_t nr_elements, uint32_t nr_instances) override;
+};
+
+
+
+
+
+
+
+
+
+
+
+
+hmm, maybe it makes more sense to actually expose ::pipeline as the 'high level' interface of ::graphics
+so they should really all be under ::graphics 
+then, a GraphicsDevice will naturally contain this higher level API 
+this also makes sharing enums much better
+
+ - high level 
+Program
+ProgramInvocation 
+Resource 
+  	Buffer
+  	Texture
+Shader 
+
+the issue is that I will run into a naming collision between the high and low level APIs due to them having similar things 
+like OpenGL also has Programs and Shaders, but I need to have an 'opengl implementation' of the high level Program and Shader as well 
+
+maybe we just make the 'opengl implementation' of the high level interface, and the opengl wrapper the same thing?
+separating them did seem a little weird, it was like making a wrapper around another wrapper 
+
+
+
+

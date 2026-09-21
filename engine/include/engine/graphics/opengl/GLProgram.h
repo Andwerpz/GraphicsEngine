@@ -2,26 +2,77 @@
 #include <cstdint>
 #include <glad/glad.h>
 
+#include "../Program.h"
+#include "../Shader.h"
+#include "../ProgramInvocation.h"
+
 namespace engine::graphics::opengl {
 
 // a GLComputeProgram represents some code that is explicitly meant to be ran with some 
 //   general purpose computation kernel
 
-// a GLGraphicsProgram is more specialized for geometric primitive rendering
-// the graphics pipeline should specify what sort of geometric primitive it can handle 
+// a GLRenderingProgram is more specialized for geometric primitive rendering
+// the program specifies what sort of geometric primitives it expects to be rendering
 
-class OpenGLGraphicsDevice;
+class GLGraphicsDevice;
 
-class GLComputeProgram {
+
+class GLRenderingProgram : public engine::graphics::RenderingProgram {
+    friend class GLGraphicsDevice;
+    using PrimitiveTopology = engine::graphics::PrimitiveTopology;
+    using Shader = engine::graphics::Shader;
+
 public:
-    GLComputeProgram(GLComputeProgram&&);
-    ~GLComputeProgram();
+    GLRenderingProgram(GLRenderingProgram&&);
+    ~GLRenderingProgram() override;
+
+    GLuint get_handle() {
+        return handle;
+    }
+
+    std::unique_ptr<engine::graphics::RenderingProgramInvocation> create_invocation() override;
 
 private:
-    friend class OpenGLGraphicsDevice;
+    GLRenderingProgram(
+        Shader& vertex,
+        Shader& fragment,
+        PrimitiveTopology primitive_topology,
+        GLGraphicsDevice& device, 
+        GLuint handle
+    );
 
-    GLComputeProgram(OpenGLGraphicsDevice& device, GLuint handle) :
-        device(device), handle(handle) {}
+    GLRenderingProgram() = delete;
+    GLRenderingProgram(const GLRenderingProgram&) = delete;
+    GLRenderingProgram& operator=(const GLRenderingProgram&) = delete;
+    GLRenderingProgram& operator=(GLRenderingProgram&&) = delete;
+
+    // the device that created this program
+    GLGraphicsDevice& device;
+
+    // OpenGL resource handle
+    GLuint handle;
+};
+
+
+class GLComputeProgram : public engine::graphics::ComputeProgram {
+    friend class GLGraphicsDevice;
+
+public:
+    GLComputeProgram(GLComputeProgram&&);
+    ~GLComputeProgram() override;
+
+    GLuint get_handle() {
+        return handle;
+    }
+
+    std::unique_ptr<engine::graphics::ComputeProgramInvocation> create_invocation() override;
+
+private:
+    GLComputeProgram(
+        Shader& compute,
+        GLGraphicsDevice& device, 
+        GLuint handle
+    );
 
     GLComputeProgram() = delete;
     GLComputeProgram(const GLComputeProgram&) = delete;
@@ -29,52 +80,10 @@ private:
     GLComputeProgram& operator=(GLComputeProgram&&) = delete;
 
     // the device that created this program
-    OpenGLGraphicsDevice& device;
+    GLGraphicsDevice& device;
 
     // OpenGL resource handle
     GLuint handle;
-};
-
-
-enum class PrimitiveTopology {
-    // every vertex is a point
-    PointList,
-
-    // every group of two vertices is an independent line segment
-    LineList,
-
-    // every group of three vertices is an independent triangle
-    TriangleList,
-};
-
-class GLGraphicsProgram {
-public:
-    GLGraphicsProgram(GLGraphicsProgram&&);
-    ~GLGraphicsProgram();
-
-    PrimitiveTopology get_primitive_topology() const {
-        return primitive_topology;
-    }
-
-private:
-    friend class OpenGLGraphicsDevice;
-
-    GLGraphicsProgram(OpenGLGraphicsDevice& device, GLuint handle, PrimitiveTopology primitive_topology) :
-        device(device), handle(handle), primitive_topology(primitive_topology) {}
-
-    GLGraphicsProgram() = delete;
-    GLGraphicsProgram(const GLGraphicsProgram&) = delete;
-    GLGraphicsProgram& operator=(const GLGraphicsProgram&) = delete;
-    GLGraphicsProgram& operator=(GLGraphicsProgram&&) = delete;
-
-    // the device that created this program
-    OpenGLGraphicsDevice& device;
-
-    // OpenGL resource handle
-    GLuint handle;
-
-    // the sort of primitives that this graphics pipeline expects
-    PrimitiveTopology primitive_topology;
 };
 
 }
