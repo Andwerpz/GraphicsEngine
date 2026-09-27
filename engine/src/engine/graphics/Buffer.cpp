@@ -4,12 +4,14 @@ namespace engine::graphics {
 
 Buffer::Buffer(Buffer&& other) {
     size = other.size;
-    memory = other.memory;
+    usage = other.usage;
+    frequency = other.frequency;
 }
 
-Buffer::Buffer(uint64_t _size, BufferMemory _memory) {
+Buffer::Buffer(uint64_t _size, BufferUsage _usage, BufferFrequency _frequency) {
     size = _size;
-    memory = _memory;
+    usage = _usage;
+    frequency = _frequency;
 }
 
 Buffer::~Buffer() = default;

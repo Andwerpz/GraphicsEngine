@@ -2,6 +2,8 @@
 #include <engine/graphics/opengl/GLGraphicsDevice.h>
 #include <engine/utils/error.h>
 
+#include <iostream>
+
 namespace engine::graphics::opengl {
 
 GLBuffer::GLBuffer(GLBuffer&& other) : 
@@ -19,10 +21,11 @@ GLBuffer::~GLBuffer() {
 
 GLBuffer::GLBuffer(
     uint64_t size, 
-    BufferMemory memory, 
+    BufferUsage usage,
+    BufferFrequency frequency,
     GLGraphicsDevice& device, 
     GLuint handle
-) : engine::graphics::Buffer(size, memory),
+) : engine::graphics::Buffer(size, usage, frequency),
     device(device),
     handle(handle)
 {
@@ -40,6 +43,7 @@ void GLBuffer::upload_data(
     if(size + offset > get_size()) {
         engine::utils::throw_error("upload range out of bounds");
     }
+    std::cout << "Uploading buffer data : " << size << " " << offset << std::endl;
     glNamedBufferSubData(handle, offset, size, data);
 }
 

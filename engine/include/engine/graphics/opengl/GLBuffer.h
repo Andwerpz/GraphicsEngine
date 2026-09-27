@@ -8,17 +8,8 @@ namespace engine::graphics::opengl {
 
 class GLGraphicsDevice;
 
-// what sort of thing is this buffer meant to be used for?
-enum class GLBufferUsage {
-    Vertex,     // holding geometric primitive information
-    Index,      // indexing into other buffers during rendering
-    Uniform,    // read-only shader parameters
-    Storage,    // general shader readable/writable buffer
-};
-
 class GLBuffer : public engine::graphics::Buffer {
     friend class GLGraphicsDevice;
-    using BufferMemory = engine::graphics::BufferMemory;
 
 public:
     GLBuffer(GLBuffer&&);
@@ -44,7 +35,8 @@ public:
 private:
     GLBuffer(
         uint64_t size, 
-        BufferMemory memory, 
+        BufferUsage usage,
+        BufferFrequency frequency,
         GLGraphicsDevice& device, 
         GLuint handle
     );

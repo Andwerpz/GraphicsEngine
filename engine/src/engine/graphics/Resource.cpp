@@ -2,6 +2,6 @@
 
 namespace engine::graphics {
 
-
+Resource::~Resource() = default;
     
 }

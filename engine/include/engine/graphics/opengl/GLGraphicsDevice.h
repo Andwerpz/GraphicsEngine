@@ -45,6 +45,9 @@ public:
     static GLenum gl_draw_mode(PrimitiveTopology primitive_topology);
     static GLenum gl_index_type(IndexFormat format);
 
+    // drains all errors and prints them out
+    void gl_get_error();
+
     // -- WINDOW --
     GLWindow& gl_get_window() {
         return window;
@@ -62,7 +65,8 @@ public:
     // resource creation
     GLBuffer gl_create_buffer(
         uint64_t size, 
-        BufferMemory memory
+        BufferUsage usage,
+        BufferFrequency frequency
     );
     GLTexture gl_create_texture(
         TextureType type, 
@@ -111,7 +115,7 @@ public:
     void gl_end();
 
     // resource binding
-    void gl_bind_buffer(uint32_t slot, GLBufferUsage usage, GLBuffer& buf);
+    void gl_bind_buffer(uint32_t slot, GLBuffer& buf);
     void gl_bind_texture(uint32_t slot, GLTexture& tex);
     void gl_bind_vertex_array(GLVertexArray& va);
     void gl_bind_framebuffer(GLFramebuffer& fb);
@@ -145,7 +149,8 @@ public:
     // -- EXTERNAL API --
     std::unique_ptr<engine::graphics::Buffer> create_buffer(
         uint64_t size, 
-        BufferMemory memory
+        BufferUsage usage,
+        BufferFrequency frequency
     ) override;
     std::unique_ptr<engine::graphics::Texture> create_texture(
         TextureType type, 
@@ -182,7 +187,7 @@ private:
     std::vector<GLTexture*> bound_textures;
 
     uint32_t max_bound_buffers;
-    std::vector<std::pair<GLBuffer*, GLBufferUsage>> bound_buffers;
+    std::vector<std::pair<GLBuffer*, BufferUsage>> bound_buffers;
 
     std::optional<GLVertexArray*> bound_vertex_array;
     std::optional<GLFramebuffer*> bound_framebuffer;

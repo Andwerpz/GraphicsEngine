@@ -2,33 +2,83 @@
 #include <cstdint>
 #include <vector>
 #include <optional>
+#include <map>
+#include <memory>
+#include <string>
+#include <string_view>
+
+#include <glm/glm.hpp>
 
 namespace engine::graphics {
 
 class Resource;
 class Buffer;
 class Texture;
+class Program;
+class GraphicsDevice;
+
+// TODO need to handle non-buffer uniforms. These are probably more graphics API specific
+//   seems like I may need to query non-buffer uniforms from the graphics API 
+//   or I suppose I could directly parse the spirv code as well 
+//   spirv-reflect doesn't seem to have a way to query these uniforms
+// TODO instead of immediately updating uniform buffers, lazily update them  
+
+// resolved handle to a location in a uniform buffer 
+// tokens are templated in order to provide compile-time checks that your uniform types are correct
+template<typename T>
+struct UniformToken {
+    // byte offset into uniform buffer
+    uint64_t offset;
+
+    // uniform buffer resource binding location
+    std::pair<uint32_t, uint32_t> location;
+};
 
 // a ProgramInvocation is a container relating a Program and the resources required to run the program 
 // to actually run a program, you need a ProgramInvocation
-
 class ProgramInvocation {
 protected:
+    ProgramInvocation(
+        GraphicsDevice& device,
+        Program& program
+    );
     virtual ~ProgramInvocation() = 0;
 
-	// bound resources to all shaders in this program
-	struct ResourceBinding {
-		Resource& resource;
-		uint32_t set;
-		uint32_t binding;
-	};
-	std::vector<ResourceBinding> resources;
+    // underlying graphics API
+    GraphicsDevice& device;
+
+    // underlying program
+    Program& program;
+
+    // map {set, binding} -> resource
+    std::map<std::pair<uint32_t, uint32_t>, std::reference_wrapper<Resource>> resources;
+
+    // uniform buffers managed by the invocation 
+    // if a uniform buffer is not bound, the invocation will generate one
+    std::vector<std::unique_ptr<Buffer>> uniform_buffers;
 
 public:
+    // bind a resource to this program invocation
+    // should be done before validation
+    void bind_resource(uint32_t set, uint32_t binding, Resource& resource);
+    void bind_resource(std::pair<uint32_t, uint32_t> location, Resource& resource);
+
+    Resource& get_resource(uint32_t set, uint32_t binding);
+    Resource& get_resource(std::pair<uint32_t, uint32_t> location);
+
     // should make sure that the resources contained here can actually be used to invoke the given program
-    // should only be able to invoke after validating 
+    // should only be able to invoke the program after validating 
     // once validated, you shouldn't be able to change any resource bindings
     void validate();
+
+    // retrieve a token that can be used to set uniforms
+    // meant to be done once at init-time as parsing the address string is slow
+    template<typename T>
+    UniformToken<T> get_uniform(std::string_view addr);
+
+    // use generated tokens to set uniform values 
+    void set_uniform(UniformToken<float> token, float val);
+    void set_uniform(UniformToken<glm::vec3> token, glm::vec3 val);
 
 protected:
     virtual void validate_impl() = 0;
@@ -59,6 +109,11 @@ enum class IndexFormat {
 // everything required to invoke a rendering program
 class RenderingProgramInvocation : public ProgramInvocation {
 protected:
+    RenderingProgramInvocation(
+        GraphicsDevice& device,
+        Program& program
+    );
+
 	// mapping a vertex buffer to an input interface variable
 	struct VertexAttributeBinding {
 		Buffer& buffer;         // what buffer to use 

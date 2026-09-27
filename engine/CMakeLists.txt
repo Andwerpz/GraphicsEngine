@@ -17,6 +17,14 @@ set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(glfw)
 
+# GLM
+FetchContent_Declare(
+    glm
+    GIT_REPOSITORY https://github.com/g-truc/glm.git
+    GIT_TAG 1.0.1
+)
+FetchContent_MakeAvailable(glm)
+
 # OpenGL
 find_package(OpenGL REQUIRED)
 
@@ -45,6 +53,8 @@ target_include_directories(engine
 
 # declare dependencies that consumers need
 target_link_libraries(engine 
+    PUBLIC
+        glm::glm
     PRIVATE 
         glfw 
         OpenGL::GL

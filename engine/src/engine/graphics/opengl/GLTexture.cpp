@@ -37,8 +37,8 @@ GLTexture::GLTexture(
 
 void GLTexture::upload_data(
     const void* data,
-    uint32_t mip_level = 0,
-    uint32_t cube_face = 0
+    uint32_t mip_level,
+    uint32_t cube_face
 ) {
     if(data == nullptr) {
         engine::utils::throw_error("data cannot be nullptr");

@@ -27,8 +27,8 @@ GLRenderingProgram::GLRenderingProgram(
 }
 
 std::unique_ptr<engine::graphics::RenderingProgramInvocation> GLRenderingProgram::create_invocation() {
-    return std::make_unique<engine::graphics::opengl::GLRenderingProgramInvocation>(
-        GLRenderingProgramInvocation(device, *this)
+    return std::unique_ptr<engine::graphics::RenderingProgramInvocation>(
+        new GLRenderingProgramInvocation(device, *this)
     );
 }
 

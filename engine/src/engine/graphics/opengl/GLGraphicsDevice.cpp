@@ -1,4 +1,5 @@
 #include <engine/graphics/opengl/GLGraphicsDevice.h>
+#include <engine/utils/error.h>
 
 #include <stdexcept>
 #include <cassert>
@@ -23,7 +24,7 @@ std::unique_ptr<engine::graphics::GraphicsDevice> GLGraphicsDevice::create(uint3
 
     glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_X11);
     if(!glfwInit()) {
-        throw std::runtime_error("Failed to initialize GLFW");
+        engine::utils::throw_error("Failed to initialize GLFW");
     }
     // std::cout << "GLFW platform : " << glfwGetPlatform() << std::endl;
     
@@ -41,7 +42,7 @@ std::unique_ptr<engine::graphics::GraphicsDevice> GLGraphicsDevice::create(uint3
     );
     if(glfw_window == nullptr) {
         glfwTerminate();
-        throw std::runtime_error("Failed to create GLFW window");
+        engine::utils::throw_error("Failed to create GLFW window");
     }
     glfwShowWindow(glfw_window);
 
@@ -49,7 +50,7 @@ std::unique_ptr<engine::graphics::GraphicsDevice> GLGraphicsDevice::create(uint3
     if(gladLoadGL() == 0) {
         glfwDestroyWindow(glfw_window);
         glfwTerminate();
-        throw std::runtime_error("Failed to initialize GLAD");
+        engine::utils::throw_error("Failed to initialize GLAD");
     }
 
     GLWindow window(glfw_window);
@@ -157,24 +158,70 @@ GLenum GLGraphicsDevice::gl_index_type(IndexFormat format) {
     }
 }
 
+void GLGraphicsDevice::gl_get_error() {
+    GLenum error;
+    while((error = glGetError()) != GL_NO_ERROR) {
+        const char* message;
+        switch (error) {
+            case GL_INVALID_ENUM:
+                message = "GL_INVALID_ENUM";
+                break;
+            case GL_INVALID_VALUE:
+                message = "GL_INVALID_VALUE";
+                break;
+            case GL_INVALID_OPERATION:
+                message = "GL_INVALID_OPERATION";
+                break;
+            case GL_INVALID_FRAMEBUFFER_OPERATION:
+                message = "GL_INVALID_FRAMEBUFFER_OPERATION";
+                break;
+            case GL_OUT_OF_MEMORY:
+                message = "GL_OUT_OF_MEMORY";
+                break;
+            case GL_STACK_UNDERFLOW:
+                message = "GL_STACK_UNDERFLOW";
+                break;
+            case GL_STACK_OVERFLOW:
+                message = "GL_STACK_OVERFLOW";
+                break;
+            default:
+                message = "UNKNOWN_OPENGL_ERROR";
+                break;
+        }
+        throw std::runtime_error(
+            std::string("OpenGL error : ") +
+            message + " (0x" +
+            [&]() {
+                std::stringstream ss;
+                ss << std::hex << error;
+                return ss.str();
+            }() +
+            ")"
+        );
+    }
+}
+
 // -- RESOURCES --
-GLBuffer GLGraphicsDevice::gl_create_buffer(uint64_t size, BufferMemory memory) {
+GLBuffer GLGraphicsDevice::gl_create_buffer(        
+    uint64_t size, 
+    BufferUsage usage,
+    BufferFrequency frequency
+) {
     if(size == 0) {
-        throw std::runtime_error("Buffer size must be non-zero");
+        engine::utils::throw_error("Buffer size must be non-zero");
     }
 
     // create buffer
     GLuint handle;
-    glGenBuffers(1, &handle);
+    glCreateBuffers(1, &handle);
 
     // allocate storage
     GLbitfield flags = 0;
-    switch(memory) {
-        case BufferMemory::Read:
-            flags |= GL_MAP_READ_BIT;
+    switch (frequency) {
+        case BufferFrequency::Static:
             break;
-        case BufferMemory::Write:
-            flags |= GL_MAP_WRITE_BIT;
+        case BufferFrequency::Dynamic:
+            flags |= GL_DYNAMIC_STORAGE_BIT;
             break;
         default:
             assert(false);
@@ -182,7 +229,7 @@ GLBuffer GLGraphicsDevice::gl_create_buffer(uint64_t size, BufferMemory memory) 
     assert(size > 0);
     glNamedBufferStorage(handle, size, nullptr, flags);
     
-    GLBuffer buf(size, memory, *this, handle);
+    GLBuffer buf(size, usage, frequency, *this, handle);
     return buf;
 }
 
@@ -195,28 +242,28 @@ GLTexture GLGraphicsDevice::gl_create_texture(
     uint32_t mip_levels
 ) {
     if(width == 0 || height == 0 || depth == 0) {
-        throw std::runtime_error("Texture dimensions must be non-zero");
+        engine::utils::throw_error("Texture dimensions must be non-zero");
     }
     if(mip_levels == 0) {
-        throw std::runtime_error("Texture mip_levels must be non-zero");
+        engine::utils::throw_error("Texture mip_levels must be non-zero");
     }
 
     switch(type) {
         case TextureType::D1:
             if(height != 1 || depth != 1) {
-                throw std::runtime_error("1D Texture needs to have unit height and depth");
+                engine::utils::throw_error("1D Texture needs to have unit height and depth");
             }
             break;
         case TextureType::D2:
             if(depth != 1) {
-                throw std::runtime_error("2D Texture needs to have unit depth");
+                engine::utils::throw_error("2D Texture needs to have unit depth");
             }
             break;
         case TextureType::D3:
             break;
         case TextureType::Cube:
             if(depth != 1) {
-                throw std::runtime_error("Cubemap Texture needs to have unit depth");
+                engine::utils::throw_error("Cubemap Texture needs to have unit depth");
             }
             break;
         default:
@@ -342,7 +389,7 @@ GLShader GLGraphicsDevice::gl_create_shader(
             log.data()
         );
         glDeleteShader(handle);
-        throw std::runtime_error("SPIR-V shader compilation failed :\n" + log);
+        engine::utils::throw_error("SPIR-V shader compilation failed :\n" + log);
     }
 
     GLShader shader(
@@ -360,10 +407,10 @@ GLRenderingProgram GLGraphicsDevice::gl_create_rendering_program(
     PrimitiveTopology primitive_topology
 ) {
     if(vertex_shader.get_stage() != ShaderStage::Vertex) {
-        throw std::runtime_error("Expect vertex_shader to be of type Vertex");
+        engine::utils::throw_error("Expect vertex_shader to be of type Vertex");
     }
     if(fragment_shader.get_stage() != ShaderStage::Fragment) {
-        throw std::runtime_error("Expect fragment_shader to be of type Fragment");
+        engine::utils::throw_error("Expect fragment_shader to be of type Fragment");
     }
 
     // create program
@@ -382,7 +429,7 @@ GLRenderingProgram GLGraphicsDevice::gl_create_rendering_program(
         std::string log(log_size, '\0');
         glGetProgramInfoLog(handle, log_size, nullptr, log.data());
         glDeleteProgram(handle);
-        throw std::runtime_error("Graphics program linking failed :\n" + log);
+        engine::utils::throw_error("Graphics program linking failed :\n" + log);
     }
 
     GLRenderingProgram program(
@@ -399,7 +446,7 @@ GLComputeProgram GLGraphicsDevice::gl_create_compute_program(
     GLShader& compute_shader
 ) {
     if(compute_shader.get_stage() != ShaderStage::Compute) {
-        throw std::runtime_error("Expect compute_shader to be of type Compute");
+        engine::utils::throw_error("Expect compute_shader to be of type Compute");
     }
 
     // create program
@@ -417,7 +464,7 @@ GLComputeProgram GLGraphicsDevice::gl_create_compute_program(
         std::string log(log_size, '\0');
         glGetProgramInfoLog(handle, log_size, nullptr, log.data());
         glDeleteProgram(handle);
-        throw std::runtime_error("Compute program linking failed :\n" + log);
+        engine::utils::throw_error("Compute program linking failed :\n" + log);
     }
 
     GLComputeProgram program(
@@ -430,6 +477,7 @@ GLComputeProgram GLGraphicsDevice::gl_create_compute_program(
 
 // -- RESOURCE DELETION --
 void GLGraphicsDevice::gl_delete_buffer(GLuint gl_handle) {
+    std::cout << "GL delete buffer " << gl_handle << std::endl;
     glDeleteBuffers(1, &gl_handle);
 }
 
@@ -493,20 +541,38 @@ void GLGraphicsDevice::gl_bind_texture(uint32_t slot, GLTexture& tex) {
     assert(executing);
     assert(&tex.device == this);
     if(slot >= max_bound_textures) {
-        throw std::runtime_error("OpenGL bind_texture slot should be less than " + std::to_string(slot));
+        engine::utils::throw_error("OpenGL bind_texture slot should be less than " + std::to_string(slot));
     }
     
     // TODO
+    assert(false);
 }
 
-void GLGraphicsDevice::gl_bind_buffer(uint32_t slot, GLBufferUsage usage, GLBuffer& buf) {
+void GLGraphicsDevice::gl_bind_buffer(uint32_t slot, GLBuffer& buf) {
     assert(executing);
     assert(&buf.device == this);
-    if(slot >= max_bound_buffers) {
-        throw std::runtime_error("OpenGL bind_buffer slot should be less than " + std::to_string(slot));
-    }
+    // if(slot >= max_bound_buffers) {
+    //     engine::utils::throw_error("OpenGL bind_buffer slot exceeds max slot index " + std::to_string(slot));
+    // }
 
-    // TODO
+    GLenum gl_target;
+    switch(buf.get_usage()) {
+        case BufferUsage::Uniform:
+            gl_target = GL_UNIFORM_BUFFER;
+            break;
+        case BufferUsage::Storage:
+            gl_target = GL_SHADER_STORAGE_BUFFER;
+            break;
+        case BufferUsage::Vertex:
+            gl_target = GL_ARRAY_BUFFER;
+            break;
+        case BufferUsage::Index:
+            gl_target = GL_ELEMENT_ARRAY_BUFFER;
+            break;
+        default:
+            engine::utils::throw_error("unsupported OpenGL buffer usage");
+    }
+    glBindBufferBase(gl_target, slot, buf.get_handle());
 }
 
 void GLGraphicsDevice::gl_bind_vertex_array(GLVertexArray& va) {
@@ -559,10 +625,10 @@ void GLGraphicsDevice::gl_set_viewport(
 ) {
     assert(executing);
     if(width <= 0.0f || height <= 0.0f) {
-        throw std::runtime_error("Viewport width and height must be positive");
+        engine::utils::throw_error("Viewport width and height must be positive");
     }
     if(min_z > max_z) {
-        throw std::runtime_error("Viewport min_z must not be greater than max_z");
+        engine::utils::throw_error("Viewport min_z must not be greater than max_z");
     }
 
     glViewport(
@@ -580,7 +646,7 @@ void GLGraphicsDevice::gl_set_scissor(
 ) {
     assert(executing);
     if(width == 0 || height == 0) {
-        throw std::runtime_error("Scissor width and height must be non-zero");
+        engine::utils::throw_error("Scissor width and height must be non-zero");
     }
 
     // TODO
@@ -616,7 +682,7 @@ void GLGraphicsDevice::gl_draw_elements(
     assert(bound_framebuffer.value() != nullptr);
     assert(bound_rendering_program.value() != nullptr);
     if(!bound_vertex_array.value()->has_index_buffer()) {
-        throw std::runtime_error("gl_draw_elements expects the bound vertex array to have a bound index buffer");
+        engine::utils::throw_error("gl_draw_elements expects the bound vertex array to have a bound index buffer");
     }
     
     GLenum gl_draw_mode = GLGraphicsDevice::gl_draw_mode(bound_rendering_program.value()->get_primitive_topology());
@@ -662,7 +728,7 @@ void GLGraphicsDevice::gl_draw_elements_instanced(
     assert(bound_framebuffer.value() != nullptr);
     assert(bound_rendering_program.value() != nullptr);
     if(!bound_vertex_array.value()->has_index_buffer()) {
-        throw std::runtime_error("gl_draw_elements_instanced expects the bound vertex array to have a bound index buffer");
+        engine::utils::throw_error("gl_draw_elements_instanced expects the bound vertex array to have a bound index buffer");
     }
     
     GLenum gl_draw_mode = GLGraphicsDevice::gl_draw_mode(bound_rendering_program.value()->get_primitive_topology());
@@ -686,11 +752,13 @@ void GLGraphicsDevice::gl_dispatch(uint32_t x, uint32_t y, uint32_t z) {
 // -- EXTERNAL API --
 std::unique_ptr<engine::graphics::Buffer> GLGraphicsDevice::create_buffer(
     uint64_t size, 
-    BufferMemory memory
+    BufferUsage usage,
+    BufferFrequency frequency
 ) {
     return std::make_unique<GLBuffer>(std::move(gl_create_buffer(
         size, 
-        memory
+        usage,
+        frequency
     )));
 }
 
@@ -718,10 +786,10 @@ std::unique_ptr<engine::graphics::RenderingProgram> GLGraphicsDevice::create_ren
     PrimitiveTopology primitive_topology
 ) {
     if(!dynamic_cast<engine::graphics::opengl::GLShader*>(&_vertex)) {
-        throw std::runtime_error("create_rendering_program vertex shader needs to be a GLShader");
+        engine::utils::throw_error("create_rendering_program vertex shader needs to be a GLShader");
     }
     if(!dynamic_cast<engine::graphics::opengl::GLShader*>(&_fragment)) {
-        throw std::runtime_error("create_rendering_program fragment shader needs to be a GLShader");
+        engine::utils::throw_error("create_rendering_program fragment shader needs to be a GLShader");
     }
     engine::graphics::opengl::GLShader& vertex = dynamic_cast<engine::graphics::opengl::GLShader&>(_vertex);
     engine::graphics::opengl::GLShader& fragment = dynamic_cast<engine::graphics::opengl::GLShader&>(_fragment);
@@ -730,10 +798,10 @@ std::unique_ptr<engine::graphics::RenderingProgram> GLGraphicsDevice::create_ren
 
     using ShaderStage = engine::graphics::ShaderStage;
     if(vertex.get_stage() != ShaderStage::Vertex) {
-        throw std::runtime_error("create_rendering_program vertex shader should be stage Vertex");
+        engine::utils::throw_error("create_rendering_program vertex shader should be stage Vertex");
     }
     if(fragment.get_stage() != ShaderStage::Fragment) {
-        throw std::runtime_error("create_rendering_program fragment shader should be stage Fragment");
+        engine::utils::throw_error("create_rendering_program fragment shader should be stage Fragment");
     }
 
     // create a GPU program
@@ -758,7 +826,7 @@ std::unique_ptr<engine::graphics::Shader> GLGraphicsDevice::create_shader(
     {
         std::ifstream file(source_path, std::ios::in | std::ios::binary);
         if(!file) {
-            throw std::runtime_error("Cannot open file : " + source_path.string());
+            engine::utils::throw_error("Cannot open file : " + source_path.string());
         }
         std::ostringstream ss;
         ss << file.rdbuf();
@@ -781,13 +849,13 @@ std::unique_ptr<engine::graphics::Shader> GLGraphicsDevice::create_shader(
         sc_kind = shaderc_glsl_compute_shader;
     } 
     else {
-        throw std::runtime_error("Unknown shader extension: " + source_path.extension().string());
+        engine::utils::throw_error("Unknown shader extension: " + source_path.extension().string());
     }
 
     // create a compiler
     shaderc_compiler_t sc_compiler = shaderc_compiler_initialize();
     if(!sc_compiler) {
-        throw std::runtime_error("Failed to initialize shaderc");
+        engine::utils::throw_error("Failed to initialize shaderc");
     }
 
     // compile into SPIR-V
@@ -817,7 +885,7 @@ std::unique_ptr<engine::graphics::Shader> GLGraphicsDevice::create_shader(
         std::string error = shaderc_result_get_error_message(sc_result);
         shaderc_result_release(sc_result);
         shaderc_compiler_release(sc_compiler);
-        throw std::runtime_error("Shader compilation failed : \n" + error);
+        engine::utils::throw_error("Shader compilation failed : \n" + error);
     }
 
     // copy SPIR-V 

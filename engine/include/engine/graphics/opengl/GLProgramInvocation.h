@@ -27,19 +27,19 @@ private:
     );
 
 	// underlying graphics API 
-	GLGraphicsDevice& device;
+	GLGraphicsDevice& gl_device;
 
 	// underlying program 
-	GLRenderingProgram& program;
+	GLRenderingProgram& gl_program;
 
     // vertex array gets built when this invocation gets validated
     // when drawing, this vertex array gets bound to supply vertex information to the program
-    std::optional<GLVertexArray> vertex_array;
+    std::optional<GLVertexArray> gl_vertex_array;
 
     // framebuffer gets built when this invocation gets validated
     // all output textures should get bound to this framebuffer
     // when drawing, this framebuffer gets bound and rendered to 
-    std::optional<GLFramebuffer> framebuffer;
+    std::optional<GLFramebuffer> gl_framebuffer;
 
 public:
     void validate_impl() override;

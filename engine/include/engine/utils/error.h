@@ -6,7 +6,7 @@
 namespace engine::utils {
 
 [[noreturn]]
-void throw_error(
+inline void throw_error(
     const std::string& message,
     std::source_location location = std::source_location::current()
 ) {

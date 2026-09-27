@@ -17,7 +17,8 @@ class ComputeProgram;
 
 class GraphicsDevice {
 protected:
-    using BufferMemory = engine::graphics::BufferMemory;
+    using BufferUsage = engine::graphics::BufferUsage;
+    using BufferFrequency = engine::graphics::BufferFrequency;
     using TextureType = engine::graphics::TextureType;
     using TextureFormat = engine::graphics::TextureFormat;
     using PrimitiveTopology = engine::graphics::PrimitiveTopology;
@@ -32,7 +33,8 @@ public:
     // GPU resources
     virtual std::unique_ptr<Buffer> create_buffer(
         uint64_t size, 
-        BufferMemory memory
+        BufferUsage usage,
+        BufferFrequency frequency
     ) = 0;
     virtual std::unique_ptr<Texture> create_texture(
         TextureType type, 
