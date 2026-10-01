@@ -73,6 +73,19 @@ const char* get_descriptor_type_string(SpvReflectDescriptorType spv_type) {
     }
 }
 
+const char* get_image_dimension_string(SpvDim_ dim) {
+    switch(dim) {
+        case SpvDim1D:           return "1D";
+        case SpvDim2D:           return "2D";
+        case SpvDim3D:           return "3D";
+        case SpvDimCube:         return "CUBE";
+        case SpvDimRect:         return "RECT";
+        case SpvDimBuffer:       return "BUFFER";
+        case SpvDimSubpassData:  return "SUBPASS_DATA";
+        default:                 return "UNKNOWN";
+    }
+}
+
 struct SpirvInstruction {
     SpvOp opcode;
     std::vector<uint32_t> words;    // all words, including first word
@@ -153,7 +166,7 @@ std::string parse_spirv_string(const std::vector<uint32_t>& words, size_t start)
 // documentation of "OpType*"" instructions : 
 //   https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html#OpTypeBool
 std::map<uint32_t, ShaderType> parse_shader_types(const std::vector<SpirvInstruction>& instructions) {
-    constexpr bool debug = false;
+    constexpr bool debug = true;
     auto get_from_id = []<typename T>(uint32_t id, std::map<uint32_t, T>& id_map) -> T& {
         if(!id_map.contains(id)) {
             engine::utils::throw_error("Tried to get with undeclared id : " + std::to_string(id));
@@ -304,13 +317,88 @@ std::map<uint32_t, ShaderType> parse_shader_types(const std::vector<SpirvInstruc
                 break;
             }
             case SpvOpTypeImage: {
-                assert(false);
+                // OpTypeImage <id (Result)> <id (Sampled Type)> dim depth arrayed multisampled sampled image_format access_qualifier
+                // sampled_type refers to the type that results from sampling this image. Must be a scalar type or void
+                // dim is the dimensionality of the image
+                // depth indicates whether or not this is a depth image. 
+                //   0 indicates no, 1 indicates yes, any other value is inconclusive
+                // arrayed must be 0 or 1 and indicates whether or not the image has multiple layers
+                // multisampled must be 0 or 1 and indicates whether or not the image has multisampled content
+                // sampled indicates whether or not this image is accessed with a sampler. 
+                //   0 indicates this is only known at runtime, 
+                //   1 indicates an image that is sampled, 
+                //   2 indicates an image that is compatible with read/write operations
+                // image_format gives the format of each texel 
+                // access_qualifier is optional and describes the access permissions of the image
+                uint32_t id = instruction.words[1];
+                uint32_t sampled_type_id = instruction.words[2];
+                SpvDim_ dim = static_cast<SpvDim_>(instruction.words[3]);
+                uint32_t depth = instruction.words[4];
+                uint32_t arrayed = instruction.words[5];
+                uint32_t multisampled = instruction.words[6];
+                uint32_t sampled = instruction.words[7];
+                uint32_t image_format = instruction.words[8];
+
+                TextureDimension dimension;
+                switch(dim) {
+                    case SpvDim1D:
+                        dimension = TextureDimension::D1;
+                        break;
+                    case SpvDim2D:
+                        dimension = TextureDimension::D2;
+                        break;
+                    case SpvDim3D:
+                        dimension = TextureDimension::D3;
+                        break;
+                    case SpvDimCube:
+                        dimension = TextureDimension::Cube;
+                        break;
+                    default:
+                        engine::utils::throw_error("Unsupported SPIR-V texture dimension : " + std::string(get_image_dimension_string(dim)));
+                }
+
+                ShaderType& base_type = get_declared_type(sampled_type_id);
+                assert(
+                    std::holds_alternative<ShaderScalarType>(base_type.type) || 
+                    std::holds_alternative<ShaderVoidType>(base_type.type)
+                );
+                std::variant<ShaderScalarType, ShaderVoidType> sampled_type = ShaderVoidType();
+                if(std::holds_alternative<ShaderScalarType>(base_type.type)) {
+                    sampled_type = std::get<ShaderScalarType>(base_type.type);
+                }
+                ShaderImageType image_type(
+                    sampled_type,
+                    dimension,
+                    arrayed,
+                    multisampled
+                );
+                ShaderType type(image_type);
+                types.emplace(id, type);
+
+                if(debug) std::cout << "OpTypeImage " << id << std::endl;
+                break;
             }
             case SpvOpTypeSampler: {
                 assert(false);
             }
             case SpvOpTypeSampledImage: {
-                assert(false);
+                // OpTypeSampledImage <id (Result)> <id (Image Type)> 
+                // image_type_id refers to a type declared by an OpTypeImage
+                //   it must not have a dim of Buffer or SubpassData
+                uint32_t id = instruction.words[1];
+                uint32_t image_type_id = instruction.words[2];
+
+                ShaderType& base_type = get_declared_type(image_type_id);
+                assert(std::holds_alternative<ShaderImageType>(base_type.type));
+                ShaderImageType& image_type = std::get<ShaderImageType>(base_type.type);
+                ShaderSampledImageType sampled_image_type(
+                    image_type  
+                );
+                ShaderType type(sampled_image_type);
+                types.emplace(id, type);
+
+                if(debug) std::cout << "OpTypeSampledImage " << id << std::endl;
+                break;
             }
             case SpvOpTypeArray: {
                 // OpTypeArray <id (Result)> <id (Element Type)> <id (Length)>
@@ -637,10 +725,20 @@ void Shader::introspect() {
             uint32_t binding = spv_resource->binding;
             switch(spv_resource->descriptor_type) {
                 case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER: {
+                    // requires a buffer
                     ShaderType type = get_shader_type(spv_resource->type_description);
                     ShaderBlockVariable blockvar = get_block_variable(&spv_resource->block);
                     ShaderResource resource = ShaderResource::create_uniform_buffer(name, type, blockvar);
-                    interface.add_resource(set, binding, resource);
+                    interface.add_resource({set, binding}, resource);
+                    break;
+                }
+                case SPV_REFLECT_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER: {
+                    // an image and a sampler combined into one
+                    ShaderType type = get_shader_type(spv_resource->type_description);
+                    assert(std::holds_alternative<ShaderSampledImageType>(type.type));
+                    ShaderImageType& image_type = std::get<ShaderSampledImageType>(type.type).image_type;
+                    ShaderResource resource = ShaderResource::create_sampled_texture(name, image_type);
+                    interface.add_resource({set, binding}, resource);
                     break;
                 }
                 default:
@@ -678,6 +776,11 @@ void Shader::introspect() {
                     std::cout << "    type = " << to_string(resource.uniform_buffer.type) << "\n";
                     std::cout << "    blockvar :\n";
                     print_block_variable(resource.uniform_buffer.blockvar, 2);
+                    break;
+                }
+                case ShaderResourceType::SampledTexture: {
+                    std::cout << "    resource_type = SampledTexture" << "\n";
+                    std::cout << "    image_type = " << to_string(resource.sampled_texture.image_type) << "\n";
                     break;
                 }
                 default:

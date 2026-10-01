@@ -20,7 +20,7 @@ GLTexture::~GLTexture() {
 }
 
 GLTexture::GLTexture(
-    TextureType type, 
+    TextureDimension type, 
     TextureFormat format, 
     uint32_t width, 
     uint32_t height, 
@@ -46,7 +46,7 @@ void GLTexture::upload_data(
     if(mip_level >= get_mip_levels()) {
         engine::utils::throw_error("mip_level out of range");
     }
-    if(get_type() == TextureType::Cube) {
+    if(get_dimension() == TextureDimension::Cube) {
         if(cube_face > 6) {
             engine::utils::throw_error("cube_face should be < 6");
         }
@@ -61,8 +61,8 @@ void GLTexture::upload_data(
     uint64_t data_size = get_size(mip_level);
     GLenum gl_format = GLGraphicsDevice::gl_format(get_format());
     GLenum gl_type = GLGraphicsDevice::gl_type(get_format());
-    switch(get_type()) {
-        case TextureType::D1:
+    switch(get_dimension()) {
+        case TextureDimension::D1:
             glTextureSubImage1D(
                 gl_handle,
                 mip_level,
@@ -73,7 +73,7 @@ void GLTexture::upload_data(
                 data
             );
             break;
-        case TextureType::D2:
+        case TextureDimension::D2:
             glTextureSubImage2D(
                 gl_handle,
                 mip_level,
@@ -85,7 +85,7 @@ void GLTexture::upload_data(
                 data
             );
             break;
-        case TextureType::D3:
+        case TextureDimension::D3:
             glTextureSubImage3D(
                 gl_handle,
                 mip_level,
@@ -98,7 +98,7 @@ void GLTexture::upload_data(
                 data
             );
             break;
-        case TextureType::Cube:
+        case TextureDimension::Cube:
             assert(cube_face < 6);
             glBindTexture(GL_TEXTURE_CUBE_MAP, gl_handle);
             glTexSubImage2D(

@@ -1,6 +1,5 @@
 #pragma once
 #include <cstdint>
-#include "Resource.h"
 
 namespace engine::graphics {
 
@@ -18,7 +17,7 @@ enum class BufferFrequency {
     Dynamic,    // contents may be changed between executions
 };
 
-class Buffer : public Resource {
+class Buffer {
 public:
     Buffer(Buffer&& other);
     virtual ~Buffer() = 0;

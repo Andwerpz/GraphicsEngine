@@ -50,12 +50,6 @@ ShaderInterface ShaderInterface::unify(ShaderInterface& left, ShaderInterface& r
             ret.resources.insert({location, i->second});
         }
     }
-
-    std::cout << "Left resources : " << left.resources.size() << std::endl;
-    std::cout << "Right resources : " << right.resources.size() << std::endl;
-    std::cout << "Combined resources : " << ret.resources.size() << std::endl;
-    std::cout << "Combined inputs : " << ret.inputs.size() << std::endl;
-    std::cout << "Combined outputs : " << ret.outputs.size() << std::endl;
     
     return ret;
 }
@@ -74,11 +68,18 @@ void ShaderInterface::add_output_variable(uint32_t location, ShaderInterfaceVari
     outputs.insert({location, variable});
 }
 
-void ShaderInterface::add_resource(uint32_t set, uint32_t binding, ShaderResource resource) {
-    if(resources.contains({set, binding})) {
-        engine::utils::throw_error("interface already contains resource on {set, binding} : {" + std::to_string(set) + ", " + std::to_string(binding) + "}");
+void ShaderInterface::add_resource(ShaderResourceLocation location, ShaderResource resource) {
+    if(resources.contains(location)) {
+        engine::utils::throw_error("interface already contains resource on location : {" + std::to_string(location.first) + ", " + std::to_string(location.second) + "}");
     }
-    resources.insert({{set, binding}, resource});
+    resources.insert({location, resource});
+}
+
+ShaderResourceType ShaderInterface::get_resource_type(ShaderResourceLocation location) {
+    if(!resources.contains(location)) {
+        engine::utils::throw_error("interface does not contain resource on location : {" + std::to_string(location.first) + ", " + std::to_string(location.second) + "}");
+    }
+    return resources.at(location).base_type;
 }
 
 }

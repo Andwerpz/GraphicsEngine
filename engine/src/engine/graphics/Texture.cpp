@@ -1,4 +1,6 @@
 #include <engine/graphics/Texture.h>
+#include <engine/utils/error.h>
+#include <engine/assets/Image.h>
 #include <cassert>
 
 namespace engine::graphics {
@@ -13,7 +15,7 @@ Texture::Texture(Texture&& other) {
 }
 
 Texture::Texture(
-    TextureType type, 
+    TextureDimension type, 
     TextureFormat format, 
     uint32_t width, 
     uint32_t height, 
@@ -39,8 +41,8 @@ uint64_t Texture::get_size(uint32_t mip_level) const {
     case TextureFormat::RGBA32F:
         px_size = 4 * 4;
         break;
-    case TextureFormat::RGBA16F:
-        px_size = 2 * 4;
+    case TextureFormat::Depth32F:
+        px_size = 4;
         break;
     default:
         assert(false);
@@ -57,6 +59,44 @@ uint64_t Texture::get_size(uint32_t mip_level) const {
     ;
     
     return px_size * nr_pixels;
+}
+
+void Texture::upload_data(
+    engine::assets::Image& image,
+    uint32_t mip_level,
+    uint32_t cube_face
+) {
+    // texture must be 2D or cubemap to accept image upload
+    if(get_dimension() != TextureDimension::D2 && get_dimension() != TextureDimension::Cube) {
+        engine::utils::throw_error("texture must be 2D or cubemap to upload data from an image");
+    }
+
+    // texture dimensions must match image dimensions
+    if(get_width(mip_level) != image.get_width() || get_height(mip_level) != image.get_height()) {
+        engine::utils::throw_error("image and texture dimensions mismatch");
+    }
+
+    // convert image data into proper format
+    assert(image.get_format() == engine::assets::ImageFormat::RGBA8);
+    void* buf;
+    switch(get_format()) {
+        case TextureFormat::RGBA32F: {
+            uint64_t buf_size = sizeof(float) * 4 * image.get_width() * image.get_height();
+            assert(buf_size == get_size(mip_level));
+            buf = malloc(buf_size);
+            for(int i = 0; i < image.get_width() * image.get_height() * 4; i++) {
+                uint8_t val = ((uint8_t*) image.get_data())[i];
+                ((float*) buf) [i] = (float) val / 255.0;
+            }
+            break;
+        }
+        default:
+            engine::utils::throw_error("texture has format incompatible with image upload");
+    }
+
+    // upload data
+    upload_data(buf, mip_level, cube_face);
+    free(buf);
 }
 
 }

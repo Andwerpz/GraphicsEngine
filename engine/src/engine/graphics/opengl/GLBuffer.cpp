@@ -37,13 +37,15 @@ void GLBuffer::upload_data(
     uint64_t size,
     uint64_t offset
 ) {
+    if(get_frequency() != BufferFrequency::Dynamic) {
+        engine::utils::throw_error("can only upload_data to a buffer with dynamic frequency");
+    }
     if(data == nullptr) {
         engine::utils::throw_error("data cannot be nullptr");
     }
     if(size + offset > get_size()) {
         engine::utils::throw_error("upload range out of bounds");
     }
-    std::cout << "Uploading buffer data : " << size << " " << offset << std::endl;
     glNamedBufferSubData(handle, offset, size, data);
 }
 

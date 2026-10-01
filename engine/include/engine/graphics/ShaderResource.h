@@ -8,15 +8,7 @@ namespace engine::graphics {
 
 enum class ShaderResourceType {
     UniformBuffer,
-    StorageBuffer,
-    Sampler,
-};
-
-enum class ShaderSamplerDimension {
-    D1,
-    D2,
-    D3,
-    Cube,
+    SampledTexture,
 };
 
 // maps types to byte offsets within a buffer
@@ -46,6 +38,7 @@ struct ShaderResource {
     ShaderResourceType base_type;
     std::string name;
 
+    // requires a buffer of type Uniform
     struct UniformBuffer {
         ShaderType type;
         ShaderBlockVariable blockvar;
@@ -53,24 +46,22 @@ struct ShaderResource {
         UniformBuffer(ShaderType type, ShaderBlockVariable blockvar);
     } uniform_buffer;
 
-    struct StorageBuffer {
-        ShaderType type;
-        ShaderBlockVariable blockvar;
-        StorageBuffer();
-        StorageBuffer(ShaderType type, ShaderBlockVariable blockvar);
-    } storage_buffer;
-
-    struct Sampler {
-        ShaderSamplerDimension dim;
-        Sampler();
-    } sampler;
+    // requires a texture and a sampler
+    struct SampledTexture {
+        ShaderImageType image_type;
+        SampledTexture();
+        SampledTexture(ShaderImageType image_type);
+    } sampled_texture;
 
     static ShaderResource create_uniform_buffer(
         std::string name, 
         ShaderType uniform_buffer_type,
         ShaderBlockVariable blockvar
     );
-    // static ShaderResource create_sampler(std::string name);
+    static ShaderResource create_sampled_texture(
+        std::string name,
+        ShaderImageType image_type
+    );
 
     bool operator==(const ShaderResource& other) const;
 };

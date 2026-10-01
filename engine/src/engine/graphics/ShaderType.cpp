@@ -25,6 +25,24 @@ ShaderMatrixType::ShaderMatrixType(ShaderScalarType _base_type, uint32_t _rows, 
     cols = _cols;
 }
 
+ShaderImageType::ShaderImageType(
+    SampledType _sampled_type,
+    TextureDimension _dimension,
+    bool _arrayed,
+    bool _multisampled
+) {
+    sampled_type = _sampled_type;
+    dimension = _dimension;
+    arrayed = _arrayed;
+    multisampled = _multisampled;
+}
+
+ShaderSampledImageType::ShaderSampledImageType(ShaderImageType _image_type) :
+    image_type(_image_type)
+{
+    // do nothing
+}
+
 ShaderArrayType::ShaderArrayType(ShaderType _base_type, uint32_t _dimension) :
     base_type(std::make_unique<ShaderType>(_base_type))
 {
@@ -70,6 +88,19 @@ ShaderMatrixType::ShaderMatrixType(const ShaderMatrixType& other) {
     base_type = other.base_type;
     rows = other.rows;
     cols = other.cols;
+}
+
+ShaderImageType::ShaderImageType(const ShaderImageType& other) {
+    sampled_type = other.sampled_type;
+    dimension = other.dimension;
+    arrayed = other.arrayed;
+    multisampled = other.multisampled;
+}
+
+ShaderSampledImageType::ShaderSampledImageType(const ShaderSampledImageType& other) :
+    image_type(other.image_type)
+{
+    // do nothing
 }
 
 ShaderArrayType::ShaderArrayType(const ShaderArrayType& other) :
@@ -121,6 +152,19 @@ ShaderMatrixType& ShaderMatrixType::operator=(const ShaderMatrixType& other) {
     base_type = other.base_type;
     rows = other.rows;
     cols = other.cols;
+    return *this;
+}
+
+ShaderImageType& ShaderImageType::operator=(const ShaderImageType& other) {
+    sampled_type = other.sampled_type;
+    dimension = other.dimension;
+    arrayed = other.arrayed;
+    multisampled = other.multisampled;
+    return *this;
+}
+
+ShaderSampledImageType& ShaderSampledImageType::operator=(const ShaderSampledImageType& other) {
+    image_type = other.image_type;
     return *this;
 }
 
@@ -179,6 +223,14 @@ bool ShaderVectorType::operator==(const ShaderVectorType& other) const {
 
 bool ShaderMatrixType::operator==(const ShaderMatrixType& other) const {
     return base_type == other.base_type && rows == other.rows && cols == other.cols;
+}
+
+bool ShaderImageType::operator==(const ShaderImageType& other) const {
+    assert(false);
+}
+
+bool ShaderSampledImageType::operator==(const ShaderSampledImageType& other) const {
+    return image_type == other.image_type;
 }
 
 bool ShaderArrayType::operator==(const ShaderArrayType& other) const {
@@ -240,6 +292,14 @@ std::string to_string(const ShaderVectorType& type) {
 
 std::string to_string(const ShaderMatrixType& type) {
     return "Matrix<" + to_string(type.base_type) + ", " + std::to_string(type.cols) + ", " + std::to_string(type.rows) + ">";
+}
+
+std::string to_string(const ShaderImageType& type) {
+    return "TODO";
+}
+
+std::string to_string(const ShaderSampledImageType& type) {
+    return "Sampler<" + to_string(type.image_type) + ">";
 }
 
 std::string to_string(const ShaderArrayType& type) {

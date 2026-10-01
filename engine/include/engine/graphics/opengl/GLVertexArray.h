@@ -13,6 +13,7 @@ class GLBuffer;
 class GLVertexArray {
     friend class GLGraphicsDevice;
     using IndexFormat = engine::graphics::IndexFormat;
+    using VertexFormat = engine::graphics::VertexFormat;
 
 private:
     GLVertexArray(
@@ -43,11 +44,24 @@ public:
     }
 
     // binds a buffer to this vertex array as a vertex buffer 
+    // this just tells opengl that the buffer is related to this vertex array on this slot
+    // you need to configure a vertex attribute on this vertex array to actually use the information
+    //   stored within this buffer
     void gl_bind_vertex_buffer(
         GLuint slot,
         GLBuffer& buffer,
         GLintptr offset,
         GLsizei stride
+    );
+
+    // creates a vertex attribute, binds it to the given buffer slot, and enables it
+    // a vertex attribute tells opengl how to interpret the underlying buffer
+    // 'attrib_slot' will correspond to the underlying shader interface variable location
+    void gl_bind_vertex_attribute(
+        GLuint attrib_slot,
+        GLuint buffer_slot,
+        VertexFormat format,
+        GLuint relative_offset
     );
 
     // binds a buffer to this vertex array as an index buffer

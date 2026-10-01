@@ -72,25 +72,19 @@ ShaderResource::UniformBuffer::UniformBuffer(
     // do nothing
 }
 
-ShaderResource::StorageBuffer::StorageBuffer() :
-    type(ShaderVoidType()),
-    blockvar()
+ShaderResource::SampledTexture::SampledTexture(
+    ShaderImageType image_type
+) : image_type(image_type)
 {
     // do nothing
 }
 
-ShaderResource::StorageBuffer::StorageBuffer(
-    ShaderType type,
-    ShaderBlockVariable blockvar
-) : type(type),
-    blockvar(blockvar)
+ShaderResource::SampledTexture::SampledTexture() :
+    image_type(ShaderVoidType(), TextureDimension::D2, false, false)
 {
     // do nothing
 }
 
-ShaderResource::Sampler::Sampler() {
-    dim = ShaderSamplerDimension::D1;
-}
 
 ShaderResource ShaderResource::create_uniform_buffer(
     std::string name,
@@ -104,6 +98,17 @@ ShaderResource ShaderResource::create_uniform_buffer(
     return res;
 }
 
+ShaderResource ShaderResource::create_sampled_texture(
+    std::string name,
+    ShaderImageType image_type
+) {
+    ShaderResource res;
+    res.base_type = ShaderResourceType::SampledTexture;
+    res.name = name;
+    res.sampled_texture = SampledTexture(image_type);
+    return res;
+}
+
 bool ShaderResource::operator==(const ShaderResource& other) const {
     if(this == &other) return true;
     if(base_type != other.base_type) return false;
@@ -112,6 +117,10 @@ bool ShaderResource::operator==(const ShaderResource& other) const {
         case ShaderResourceType::UniformBuffer: {
             if(!(uniform_buffer.type == other.uniform_buffer.type)) return false;
             if(!(uniform_buffer.blockvar == other.uniform_buffer.blockvar)) return false;
+            break;
+        }
+        case ShaderResourceType::SampledTexture: {
+            if(!(sampled_texture.image_type == other.sampled_texture.image_type)) return false;
             break;
         }
         default:

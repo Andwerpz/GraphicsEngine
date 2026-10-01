@@ -1,14 +1,18 @@
 #pragma once
-#include "Resource.h"
 #include <cstdint>
 #include <math.h>
+
+namespace engine::assets {
+class Image;
+}
 
 namespace engine::graphics {
 
 // a Texture represents some memory on the GPU 
 // the structure of the memory is determined by its type and format
 
-enum class TextureType {
+// specifies the shape of the texture data
+enum class TextureDimension {
     D1,
     D2,
     D3,
@@ -17,19 +21,18 @@ enum class TextureType {
 
 // specifies the logical texel format
 enum class TextureFormat {
-    RGBA16F,
     RGBA32F,
     Depth32F,
 };
 
-class Texture : public Resource {
+class Texture {
 public:
     Texture(Texture&& other);
     virtual ~Texture() = 0;
 
 protected:
     Texture(
-        TextureType type, 
+        TextureDimension type, 
         TextureFormat format, 
         uint32_t width, 
         uint32_t height, 
@@ -38,7 +41,7 @@ protected:
     );
 
     // what sort of texture is this
-    TextureType type;
+    TextureDimension type;
 
     // specifies how the texture is stored in GPU memory
     TextureFormat format;
@@ -52,7 +55,7 @@ protected:
     uint32_t mip_levels;
 
 public:
-    TextureType get_type() const {
+    TextureDimension get_dimension() const {
         return type;
     }
 
@@ -80,6 +83,9 @@ public:
     uint64_t get_size(uint32_t mip_level) const;
 
     // upload data to replace whatever was already in the texture
+    // data needs to be formatted according to this textures TextureFormat
+    //   RGBA32F expects each texel to be 4 floats
+    //   Depth32F expects each texel to be 1 float
     // data needs to contain enough data to replace the entire specified mip level
     // you can figure out the size of data needed by using get_size(mip_level)
     virtual void upload_data(
@@ -87,6 +93,14 @@ public:
         uint32_t mip_level = 0,
         uint32_t cube_face = 0
     ) = 0;
+
+    // uploads data directly from the provided image
+    // this texture must be a 2D texture and the dimensions of the layer must match the image dimensions
+    void upload_data(
+        engine::assets::Image& image,
+        uint32_t mip_level = 0,
+        uint32_t cube_face = 0
+    );
 
     // generates mipmaps using mip level 0 as the base
     // replaces all other mip layers

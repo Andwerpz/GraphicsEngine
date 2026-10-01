@@ -11,7 +11,7 @@ class GLGraphicsDevice;
 
 class GLTexture : public engine::graphics::Texture {
     friend class GLGraphicsDevice;
-    using TextureType = engine::graphics::TextureType;
+    using TextureDimension = engine::graphics::TextureDimension;
     using TextureFormat = engine::graphics::TextureFormat;
 
 public:
@@ -32,7 +32,7 @@ public:
 
 private:
     GLTexture(
-        TextureType type, 
+        TextureDimension type, 
         TextureFormat format, 
         uint32_t width, 
         uint32_t height, 

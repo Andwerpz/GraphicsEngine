@@ -40,12 +40,14 @@ add_library(engine STATIC
     ${ENGINE_SOURCES}
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/glad/src/glad.c
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/spirv_reflect/spirv_reflect.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb/stb_image.cpp
 )
 
 # make stuff available for users to include
 target_include_directories(engine
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/third_party/spirv_reflect
+        ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include
         ${CMAKE_CURRENT_SOURCE_DIR}/third_party/glad/include

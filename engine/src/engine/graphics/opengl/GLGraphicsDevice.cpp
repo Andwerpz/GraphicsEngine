@@ -61,25 +61,34 @@ std::unique_ptr<engine::graphics::GraphicsDevice> GLGraphicsDevice::create(uint3
 
 GLGraphicsDevice::GLGraphicsDevice(GLWindow&& _window) : window(std::move(_window)) {
     // grab capabilities
-    GLint gl_max_texture_slots;
     GLint gl_max_uniform_buffer_slots;
     GLint gl_max_storage_buffer_slots;
-    glGetIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &gl_max_texture_slots);
+    GLint gl_max_texture_slots;
+    GLint gl_max_sampler_slots;
     glGetIntegerv(GL_MAX_UNIFORM_BUFFER_BINDINGS, &gl_max_uniform_buffer_slots);
     glGetIntegerv(GL_MAX_SHADER_STORAGE_BUFFER_BINDINGS, &gl_max_storage_buffer_slots);
+    glGetIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &gl_max_texture_slots);
+    glGetIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &gl_max_sampler_slots);
 
-    assert(gl_max_texture_slots > 0);
     assert(gl_max_uniform_buffer_slots > 0);
     assert(gl_max_storage_buffer_slots > 0);
+    assert(gl_max_texture_slots > 0);
+    assert(gl_max_texture_slots > 0);
 
-    // TODO alloc stuff
+    std::cout << "gl_max_uniform_buffer_slots : " << gl_max_uniform_buffer_slots << "\n";
+    std::cout << "gl_max_storage_buffer_slots : " << gl_max_storage_buffer_slots << "\n";
+    std::cout << "gl_max_texture_slots : " << gl_max_texture_slots << "\n";
+    std::cout << "gl_max_sampler_slots : " << gl_max_sampler_slots << "\n";
+    
+    bound_uniform_buffers.resize(gl_max_uniform_buffer_slots, std::nullopt);
+    bound_storage_buffers.resize(gl_max_storage_buffer_slots, std::nullopt);
+    bound_textures.resize(gl_max_texture_slots, std::nullopt);
+    bound_samplers.resize(gl_max_sampler_slots, std::nullopt);
 }
 
 // -- UTILS --
 GLenum GLGraphicsDevice::gl_internal_format(TextureFormat format) {
     switch(format) {
-        case TextureFormat::RGBA16F:
-            return GL_RGBA16F;
         case TextureFormat::RGBA32F:
             return GL_RGBA32F;
         case TextureFormat::Depth32F:
@@ -92,8 +101,6 @@ GLenum GLGraphicsDevice::gl_internal_format(TextureFormat format) {
 
 GLenum GLGraphicsDevice::gl_format(TextureFormat format) {
     switch(format) {
-        case TextureFormat::RGBA16F:
-            return GL_RGBA;
         case TextureFormat::RGBA32F:
             return GL_RGBA;
         case TextureFormat::Depth32F:
@@ -106,8 +113,6 @@ GLenum GLGraphicsDevice::gl_format(TextureFormat format) {
 
 GLenum GLGraphicsDevice::gl_type(TextureFormat format) {
     switch(format) {
-        case TextureFormat::RGBA16F:
-            return GL_FLOAT;
         case TextureFormat::RGBA32F:
             return GL_FLOAT;
         case TextureFormat::Depth32F:
@@ -205,7 +210,8 @@ void GLGraphicsDevice::gl_get_error() {
 GLBuffer GLGraphicsDevice::gl_create_buffer(        
     uint64_t size, 
     BufferUsage usage,
-    BufferFrequency frequency
+    BufferFrequency frequency,
+    const void* data
 ) {
     if(size == 0) {
         engine::utils::throw_error("Buffer size must be non-zero");
@@ -227,14 +233,14 @@ GLBuffer GLGraphicsDevice::gl_create_buffer(
             assert(false);
     }
     assert(size > 0);
-    glNamedBufferStorage(handle, size, nullptr, flags);
+    glNamedBufferStorage(handle, size, data, flags);
     
     GLBuffer buf(size, usage, frequency, *this, handle);
     return buf;
 }
 
 GLTexture GLGraphicsDevice::gl_create_texture(
-    TextureType type, 
+    TextureDimension type, 
     TextureFormat format, 
     uint32_t width, 
     uint32_t height, 
@@ -249,19 +255,19 @@ GLTexture GLGraphicsDevice::gl_create_texture(
     }
 
     switch(type) {
-        case TextureType::D1:
+        case TextureDimension::D1:
             if(height != 1 || depth != 1) {
                 engine::utils::throw_error("1D Texture needs to have unit height and depth");
             }
             break;
-        case TextureType::D2:
+        case TextureDimension::D2:
             if(depth != 1) {
                 engine::utils::throw_error("2D Texture needs to have unit depth");
             }
             break;
-        case TextureType::D3:
+        case TextureDimension::D3:
             break;
-        case TextureType::Cube:
+        case TextureDimension::Cube:
             if(depth != 1) {
                 engine::utils::throw_error("Cubemap Texture needs to have unit depth");
             }
@@ -270,25 +276,25 @@ GLTexture GLGraphicsDevice::gl_create_texture(
             assert(false);
     }
 
-    // create texture
+    // create texture + allocate storage
     GLuint handle;
-    glGenTextures(1, &handle);
-
-    // allocate storage
     GLint gl_internal_format = GLGraphicsDevice::gl_internal_format(format);
     switch(type) {
-        case TextureType::D1:
+        case TextureDimension::D1:
+            glCreateTextures(GL_TEXTURE_1D, 1, &handle);
             glTextureStorage1D(handle, mip_levels, gl_internal_format, width);
             break;
-        case TextureType::D2:
+        case TextureDimension::D2:
+            glCreateTextures(GL_TEXTURE_2D, 1, &handle);
             glTextureStorage2D(handle, mip_levels, gl_internal_format, width, height);
             break;
-        case TextureType::D3:
+        case TextureDimension::D3:
+            glCreateTextures(GL_TEXTURE_3D, 1, &handle);
             glTextureStorage3D(handle, mip_levels, gl_internal_format, width, height, depth);
             break;
-        case TextureType::Cube:
-            glBindTexture(GL_TEXTURE_CUBE_MAP, handle);
-            glTexStorage2D(GL_TEXTURE_CUBE_MAP, mip_levels, gl_internal_format, width, height);
+        case TextureDimension::Cube:
+            glCreateTextures(GL_TEXTURE_CUBE_MAP, 1, &handle);
+            glTextureStorage2D(handle, mip_levels, gl_internal_format, width, height);
             break;
         default:
             assert(false);
@@ -301,6 +307,106 @@ GLTexture GLGraphicsDevice::gl_create_texture(
         *this, handle
     );
     return tex;
+}
+
+GLSampler GLGraphicsDevice::gl_create_sampler(
+    SamplerFilter min_filter,
+    SamplerFilter mag_filter,
+    SamplerMipmapFilter mipmap_filter,
+    SamplerAddressMode address_u,
+    SamplerAddressMode address_v,
+    SamplerAddressMode address_w
+) {
+    // create sampler
+    GLuint handle;
+    glCreateSamplers(1, &handle);
+
+    GLenum gl_min_filter;
+    switch(mipmap_filter) {
+        case SamplerMipmapFilter::None:
+            switch(min_filter) {
+                case SamplerFilter::Nearest:
+                    gl_min_filter = GL_NEAREST;
+                    break;
+                case SamplerFilter::Linear:
+                    gl_min_filter = GL_LINEAR;
+                    break;
+                default:
+                    assert(false);
+            }
+            break;
+        case SamplerMipmapFilter::Nearest:
+            switch(min_filter) {
+                case SamplerFilter::Nearest:
+                    gl_min_filter = GL_NEAREST_MIPMAP_NEAREST;
+                    break;
+                case SamplerFilter::Linear:
+                    gl_min_filter = GL_LINEAR_MIPMAP_NEAREST;
+                    break;
+                default:
+                    assert(false);
+            }
+            break;
+        case SamplerMipmapFilter::Linear:
+            switch(min_filter) {
+                case SamplerFilter::Nearest:
+                    gl_min_filter = GL_NEAREST_MIPMAP_LINEAR;
+                    break;
+                case SamplerFilter::Linear:
+                    gl_min_filter = GL_LINEAR_MIPMAP_LINEAR;
+                    break;
+                default:
+                    assert(false);
+            }
+            break;
+        default:
+            assert(false);
+    }
+
+    GLenum gl_mag_filter;
+    switch(mag_filter) {
+        case SamplerFilter::Nearest:
+            gl_mag_filter = GL_NEAREST;
+            break;
+        case SamplerFilter::Linear:
+            gl_mag_filter = GL_LINEAR;
+            break;
+        default:
+            assert(false);
+    }
+
+    auto gl_address_mode = [](SamplerAddressMode mode) -> GLenum {
+        switch (mode) {
+            case SamplerAddressMode::Repeat:
+                return GL_REPEAT;
+            case SamplerAddressMode::MirroredRepeat:
+                return GL_MIRRORED_REPEAT;
+            case SamplerAddressMode::ClampToEdge:
+                return GL_CLAMP_TO_EDGE;
+            case SamplerAddressMode::ClampToBorder:
+                return GL_CLAMP_TO_BORDER;
+            default:
+                assert(false);
+                return GL_REPEAT;
+        }
+    };
+
+    glSamplerParameteri(handle, GL_TEXTURE_MIN_FILTER, gl_min_filter);
+    glSamplerParameteri(handle, GL_TEXTURE_MAG_FILTER, gl_mag_filter);
+    glSamplerParameteri(handle, GL_TEXTURE_WRAP_S, gl_address_mode(address_u));
+    glSamplerParameteri(handle, GL_TEXTURE_WRAP_T, gl_address_mode(address_v));
+    glSamplerParameteri(handle, GL_TEXTURE_WRAP_R, gl_address_mode(address_w));
+
+    GLSampler sampler(
+        min_filter,
+        mag_filter,
+        mipmap_filter,
+        address_u,
+        address_v,
+        address_w,
+        *this, handle
+    );
+    return sampler;
 }
 
 GLVertexArray GLGraphicsDevice::gl_create_vertex_array() {
@@ -477,12 +583,15 @@ GLComputeProgram GLGraphicsDevice::gl_create_compute_program(
 
 // -- RESOURCE DELETION --
 void GLGraphicsDevice::gl_delete_buffer(GLuint gl_handle) {
-    std::cout << "GL delete buffer " << gl_handle << std::endl;
     glDeleteBuffers(1, &gl_handle);
 }
 
 void GLGraphicsDevice::gl_delete_texture(GLuint gl_handle) {
     glDeleteTextures(1, &gl_handle);
+}
+
+void GLGraphicsDevice::gl_delete_sampler(GLuint gl_handle) {
+    glDeleteSamplers(1, &gl_handle);
 }
 
 void GLGraphicsDevice::gl_delete_vertex_array(GLuint gl_handle) {
@@ -533,28 +642,85 @@ void GLGraphicsDevice::gl_end() {
     executing = false;
 
     // for now, unbind anything that is still bound
-    // will probably want to switch to a lazy unbinding scheme later
-    // TODO
-}
+    // TODO switch to a lazy unbinding scheme where we only unbind when necessary
 
-void GLGraphicsDevice::gl_bind_texture(uint32_t slot, GLTexture& tex) {
-    assert(executing);
-    assert(&tex.device == this);
-    if(slot >= max_bound_textures) {
-        engine::utils::throw_error("OpenGL bind_texture slot should be less than " + std::to_string(slot));
+    // unbind uniform buffers
+    for(int i = 0; i < bound_uniform_buffers.size(); i++) {
+        if(!bound_uniform_buffers[i].has_value()) continue;
+        glBindBufferBase(GL_UNIFORM_BUFFER, i, 0);
+        bound_uniform_buffers[i] = std::nullopt;
+    }
+
+    // unbind storage buffers
+    for(int i = 0; i < bound_storage_buffers.size(); i++) {
+        if(!bound_storage_buffers[i].has_value()) continue;
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, i, 0);
+        bound_storage_buffers[i] = std::nullopt;
+    }
+
+    // unbind textures
+    for(int i = 0; i < bound_textures.size(); i++) {
+        if(!bound_textures[i].has_value()) continue;
+        glBindTextureUnit(i, 0);
+        bound_textures[i] = std::nullopt;
     }
     
-    // TODO
-    assert(false);
+    // unbind samplers
+    for(int i = 0; i < bound_samplers.size(); i++) {
+        if(!bound_samplers[i].has_value()) continue;
+        glBindSampler(i, 0);
+        bound_samplers[i] = std::nullopt;
+    }
+
+    // unbind vertex array
+    if(bound_vertex_array.has_value()) {
+        glBindVertexArray(0);
+        bound_vertex_array = std::nullopt;
+    }
+
+    // unbind framebuffer
+    if(bound_framebuffer.has_value()) {
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        bound_framebuffer = std::nullopt;
+    }
+
+    // unbind program
+    if(program_bound) {
+        glBindProgramPipeline(0);
+        program_bound = false;
+        bound_rendering_program = std::nullopt;
+        bound_compute_program = std::nullopt;
+    }
 }
 
 void GLGraphicsDevice::gl_bind_buffer(uint32_t slot, GLBuffer& buf) {
     assert(executing);
     assert(&buf.device == this);
-    // if(slot >= max_bound_buffers) {
-    //     engine::utils::throw_error("OpenGL bind_buffer slot exceeds max slot index " + std::to_string(slot));
-    // }
 
+    // make sure slot is in range and is unbound
+    // should only be able to bind uniform buffers and storage buffers
+    if(buf.get_usage() == BufferUsage::Uniform) {
+        if(slot >= bound_uniform_buffers.size()) {
+            engine::utils::throw_error("bind_buffer slot out of range, should be less than " + std::to_string(bound_uniform_buffers.size()));
+        }
+        if(bound_uniform_buffers[slot] != std::nullopt) {
+            engine::utils::throw_error("buffer already bound to slot : " + std::to_string(slot));
+        }
+    }
+    else if(buf.get_usage() == BufferUsage::Storage) {
+        if(slot >= bound_storage_buffers.size()) {
+            engine::utils::throw_error("bind_buffer slot out of range, should be less than " + std::to_string(bound_storage_buffers.size()));
+        }
+        if(bound_storage_buffers[slot] != std::nullopt) {
+            engine::utils::throw_error("buffer already bound to slot : " + std::to_string(slot));
+        }
+    }
+    else {
+        engine::utils::throw_error("bind_buffer should only be able to bind uniform and storage buffers");
+    }
+    bound_uniform_buffers[slot] = &buf;
+
+    // bind buffer to slot
     GLenum gl_target;
     switch(buf.get_usage()) {
         case BufferUsage::Uniform:
@@ -563,16 +729,44 @@ void GLGraphicsDevice::gl_bind_buffer(uint32_t slot, GLBuffer& buf) {
         case BufferUsage::Storage:
             gl_target = GL_SHADER_STORAGE_BUFFER;
             break;
-        case BufferUsage::Vertex:
-            gl_target = GL_ARRAY_BUFFER;
-            break;
-        case BufferUsage::Index:
-            gl_target = GL_ELEMENT_ARRAY_BUFFER;
-            break;
         default:
-            engine::utils::throw_error("unsupported OpenGL buffer usage");
+            assert(false);
     }
     glBindBufferBase(gl_target, slot, buf.get_handle());
+}
+
+void GLGraphicsDevice::gl_bind_texture(uint32_t slot, GLTexture& tex) {
+    assert(executing);
+    assert(&tex.device == this);
+
+    // make sure slot is in range and is unbound
+    if(slot >= bound_textures.size()) {
+        engine::utils::throw_error("bind_texture slot out of range, should be less than " + std::to_string(bound_textures.size()));
+    }
+    if(bound_textures[slot] != std::nullopt) {
+        engine::utils::throw_error("texture already bound to slot : " + std::to_string(slot));
+    }
+    bound_textures[slot] = &tex;
+    
+    // bind texture
+    glBindTextureUnit(slot, tex.get_handle());
+}
+
+void GLGraphicsDevice::gl_bind_sampler(uint32_t slot, GLSampler& sampler) {
+    assert(executing);
+    assert(&sampler.device == this);
+
+    // make sure slot is in range and unbound
+    if(slot >= bound_samplers.size()) {
+
+    }
+    if(bound_samplers[slot] != std::nullopt) {
+
+    }
+    bound_samplers[slot] = &sampler;
+
+    // bind sampler
+    glBindSampler(slot, sampler.get_handle());
 }
 
 void GLGraphicsDevice::gl_bind_vertex_array(GLVertexArray& va) {
@@ -650,6 +844,7 @@ void GLGraphicsDevice::gl_set_scissor(
     }
 
     // TODO
+    assert(false);
 }
 
 void GLGraphicsDevice::gl_draw_arrays(
@@ -664,6 +859,35 @@ void GLGraphicsDevice::gl_draw_arrays(
     assert(bound_rendering_program.value() != nullptr);
 
     GLenum gl_draw_mode = GLGraphicsDevice::gl_draw_mode(bound_rendering_program.value()->get_primitive_topology());
+
+    if(false) {
+        GLint vao = 0;
+        glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &vao);
+        std::cout << "VAO handle : " << vao << std::endl;
+
+        for (GLuint i = 0; i < 2; ++i) {
+            GLint enabled;
+            GLint size;
+            GLint type;
+            GLint stride;
+            GLint buffer;
+
+            glGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_ENABLED, &enabled);
+            glGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_SIZE, &size);
+            glGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_TYPE, &type);
+            glGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_STRIDE, &stride);
+            glGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_BUFFER_BINDING, &buffer);
+
+            std::cout
+                << "attribute " << i << ":\n"
+                << "  enabled: " << enabled << '\n'
+                << "  size: " << size << '\n'
+                << "  type: 0x" << std::hex << type << std::dec << '\n'
+                << "  stride: " << stride << '\n'
+                << "  buffer: " << buffer << '\n';
+        }
+    }
+    
     glDrawArrays(
         gl_draw_mode,
         0,
@@ -746,6 +970,7 @@ void GLGraphicsDevice::gl_dispatch(uint32_t x, uint32_t y, uint32_t z) {
     assert(executing);
     
     // TODO
+    assert(false);
 }
 
 
@@ -753,17 +978,19 @@ void GLGraphicsDevice::gl_dispatch(uint32_t x, uint32_t y, uint32_t z) {
 std::unique_ptr<engine::graphics::Buffer> GLGraphicsDevice::create_buffer(
     uint64_t size, 
     BufferUsage usage,
-    BufferFrequency frequency
+    BufferFrequency frequency,
+    const void* data
 ) {
     return std::make_unique<GLBuffer>(std::move(gl_create_buffer(
         size, 
         usage,
-        frequency
+        frequency,
+        data
     )));
 }
 
 std::unique_ptr<engine::graphics::Texture> GLGraphicsDevice::create_texture(
-    TextureType type, 
+    TextureDimension type, 
     TextureFormat format, 
     uint32_t width, 
     uint32_t height, 
@@ -777,6 +1004,24 @@ std::unique_ptr<engine::graphics::Texture> GLGraphicsDevice::create_texture(
         height,
         depth,
         mip_levels
+    )));
+}
+
+std::unique_ptr<engine::graphics::Sampler> GLGraphicsDevice::create_sampler(
+    SamplerFilter min_filter,
+    SamplerFilter mag_filter,
+    SamplerMipmapFilter mipmap_filter,
+    SamplerAddressMode address_u,
+    SamplerAddressMode address_v,
+    SamplerAddressMode address_w
+) {
+    return std::make_unique<GLSampler>(std::move(gl_create_sampler(
+        min_filter,
+        mag_filter,
+        mipmap_filter,
+        address_u,
+        address_v,
+        address_w
     )));
 }
 
@@ -908,6 +1153,10 @@ std::unique_ptr<engine::graphics::Shader> GLGraphicsDevice::create_shader(
 
 void GLGraphicsDevice::present() {
     window.swap_buffers();
+}
+
+engine::graphics::Window& GLGraphicsDevice::get_window() {
+    return window;
 }
 
 }

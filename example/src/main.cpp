@@ -1,9 +1,13 @@
 #include <engine/graphics/opengl/GLGraphicsDevice.h>
 #include <engine/graphics/GraphicsDevice.h>
 #include <engine/graphics/Shader.h>
-#include <glm/glm.hpp>
+#include <engine/graphics/Buffer.h>
+#include <engine/assets/Image.h>
 
 #include <engine/graphics/opengl/GLBuffer.h>
+
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 #include <filesystem>
 namespace fs = std::filesystem;
@@ -19,23 +23,195 @@ std::unique_ptr<engine::graphics::Shader> create_shader(engine::graphics::Graphi
     return device.create_shader(path);
 }
 
-std::unique_ptr<engine::graphics::RenderingProgram> create_rendering_program(engine::graphics::GraphicsDevice& device, fs::path vertex_path, fs::path fragment_path) {
+std::unique_ptr<engine::graphics::RenderingProgram> create_rendering_program(
+    engine::graphics::GraphicsDevice& device, 
+    fs::path vertex_path, 
+    fs::path fragment_path,
+    engine::graphics::PrimitiveTopology primitive_topology
+) {
     auto vertex_shader = create_shader(device, vertex_path);
     auto fragment_shader = create_shader(device, fragment_path);
     return device.create_rendering_program(
         *vertex_shader, 
         *fragment_shader, 
-        engine::graphics::PrimitiveTopology::TriangleList
+        primitive_topology
     );
 }
 
-int main(int argc, char** argv) {
-    auto device = engine::graphics::opengl::GLGraphicsDevice::create(800, 600, "test window");
-    
-    fs::path vertex_path = fs::current_path() / "res" / "shaders" / "testing" / "uniform.vert" ;
-    fs::path fragment_path = fs::current_path() / "res" / "shaders" / "testing" / "uniform.frag" ;
+constexpr float cube_vertices[] = {
+    // Front (+Z)
+    -0.5f, -0.5f,  0.5f,
+    0.5f, -0.5f,  0.5f,
+    0.5f,  0.5f,  0.5f,
 
-    auto program = create_rendering_program(*device, vertex_path, fragment_path);
+    -0.5f, -0.5f,  0.5f,
+    0.5f,  0.5f,  0.5f,
+    -0.5f,  0.5f,  0.5f,
+
+    // Back (-Z)
+    0.5f, -0.5f, -0.5f,
+    -0.5f, -0.5f, -0.5f,
+    -0.5f,  0.5f, -0.5f,
+
+    0.5f, -0.5f, -0.5f,
+    -0.5f,  0.5f, -0.5f,
+    0.5f,  0.5f, -0.5f,
+
+    // Left (-X)
+    -0.5f, -0.5f, -0.5f,
+    -0.5f, -0.5f,  0.5f,
+    -0.5f,  0.5f,  0.5f,
+
+    -0.5f, -0.5f, -0.5f,
+    -0.5f,  0.5f,  0.5f,
+    -0.5f,  0.5f, -0.5f,
+
+    // Right (+X)
+    0.5f, -0.5f,  0.5f,
+    0.5f, -0.5f, -0.5f,
+    0.5f,  0.5f, -0.5f,
+
+    0.5f, -0.5f,  0.5f,
+    0.5f,  0.5f, -0.5f,
+    0.5f,  0.5f,  0.5f,
+
+    // Top (+Y)
+    -0.5f,  0.5f,  0.5f,
+    0.5f,  0.5f,  0.5f,
+    0.5f,  0.5f, -0.5f,
+
+    -0.5f,  0.5f,  0.5f,
+    0.5f,  0.5f, -0.5f,
+    -0.5f,  0.5f, -0.5f,
+
+    // Bottom (-Y)
+    -0.5f, -0.5f, -0.5f,
+    0.5f, -0.5f, -0.5f,
+    0.5f, -0.5f,  0.5f,
+
+    -0.5f, -0.5f, -0.5f,
+    0.5f, -0.5f,  0.5f,
+    -0.5f, -0.5f,  0.5f,
+};
+
+constexpr float cube_normals[] = {
+    // Front (+Z)
+     0,  0,  1,
+     0,  0,  1,
+     0,  0,  1,
+     0,  0,  1,
+     0,  0,  1,
+     0,  0,  1,
+
+    // Back (-Z)
+     0,  0, -1,
+     0,  0, -1,
+     0,  0, -1,
+     0,  0, -1,
+     0,  0, -1,
+     0,  0, -1,
+
+    // Left (-X)
+    -1,  0,  0,
+    -1,  0,  0,
+    -1,  0,  0,
+    -1,  0,  0,
+    -1,  0,  0,
+    -1,  0,  0,
+
+    // Right (+X)
+     1,  0,  0,
+     1,  0,  0,
+     1,  0,  0,
+     1,  0,  0,
+     1,  0,  0,
+     1,  0,  0,
+
+    // Top (+Y)
+     0,  1,  0,
+     0,  1,  0,
+     0,  1,  0,
+     0,  1,  0,
+     0,  1,  0,
+     0,  1,  0,
+
+    // Bottom (-Y)
+     0, -1,  0,
+     0, -1,  0,
+     0, -1,  0,
+     0, -1,  0,
+     0, -1,  0,
+     0, -1,  0,
+};
+
+constexpr float cube_uvs[] = {
+    // Front (+Z)
+    0.0f, 0.0f,
+    1.0f, 0.0f,
+    1.0f, 1.0f,
+
+    0.0f, 0.0f,
+    1.0f, 1.0f,
+    0.0f, 1.0f,
+
+    // Back (-Z)
+    0.0f, 0.0f,
+    1.0f, 0.0f,
+    1.0f, 1.0f,
+
+    0.0f, 0.0f,
+    1.0f, 1.0f,
+    0.0f, 1.0f,
+
+    // Left (-X)
+    0.0f, 0.0f,
+    1.0f, 0.0f,
+    1.0f, 1.0f,
+
+    0.0f, 0.0f,
+    1.0f, 1.0f,
+    0.0f, 1.0f,
+
+    // Right (+X)
+    0.0f, 0.0f,
+    1.0f, 0.0f,
+    1.0f, 1.0f,
+
+    0.0f, 0.0f,
+    1.0f, 1.0f,
+    0.0f, 1.0f,
+
+    // Top (+Y)
+    0.0f, 0.0f,
+    1.0f, 0.0f,
+    1.0f, 1.0f,
+
+    0.0f, 0.0f,
+    1.0f, 1.0f,
+    0.0f, 1.0f,
+
+    // Bottom (-Y)
+    0.0f, 0.0f,
+    1.0f, 0.0f,
+    1.0f, 1.0f,
+
+    0.0f, 0.0f,
+    1.0f, 1.0f,
+    0.0f, 1.0f,
+};
+
+// make sure that setting uniforms works
+// should render a screen that oscillates between black and white
+void test_uniform() {
+    auto device = engine::graphics::opengl::GLGraphicsDevice::create(800, 600, "test window");
+    fs::path vertex_path = fs::current_path() / "res/shaders/testing/uniform.vert";
+    fs::path fragment_path = fs::current_path() / "res/shaders/testing/uniform.frag";
+    auto program = create_rendering_program(
+        *device, 
+        vertex_path, 
+        fragment_path,
+        engine::graphics::PrimitiveTopology::TriangleList
+    );
 
     auto invocation = program->create_invocation(); 
     invocation->bind_window();
@@ -46,58 +222,237 @@ int main(int argc, char** argv) {
 
     auto token = invocation->get_uniform<glm::vec3>("ucolor.col");
     std::cout << "Offset : " << token.offset << std::endl;
-
-    invocation->set_uniform(token, {1, 1, 1});
     
-    if(false) {
-        engine::graphics::opengl::GLBuffer& gl_buffer = dynamic_cast<engine::graphics::opengl::GLBuffer&>(invocation->get_resource({0, 2}));
-        if(!glIsBuffer(gl_buffer.get_handle())) {
-            std::cerr << "Not a valid OpenGL buffer: " << gl_buffer.get_handle() << '\n';
-        }
+    auto start_time = std::chrono::steady_clock::now();
+    while(true) {
+        auto now = std::chrono::steady_clock::now();
+        double elapsed = std::chrono::duration<double>(now - start_time).count();
 
-        auto check_gl_error = [](const char* operation) {
-            GLenum error = glGetError();
-            if (error != GL_NO_ERROR) {
-                std::cerr
-                    << operation
-                    << " failed: 0x"
-                    << std::hex << error
-                    << std::dec << '\n';
-            }
-        };
+        // 1 Hz sine wave, mapped from [-1, 1] to [0, 1].
+        float value = static_cast<float>((std::sin(elapsed * 2.0 * M_PI) + 1.0) * 0.5);
+        invocation->set_uniform(token, glm::vec3(value));
+        invocation->draw(3);
+        device->present();
 
-        float upload_data[4] = {
-            1.0f,
-            0.5f,
-            0.25f,
-            0.0f
-        };
-        glNamedBufferSubData(
-            gl_buffer.get_handle(),
-            0,
-            sizeof(upload_data),
-            upload_data
-        );
-        check_gl_error("glNamedBufferSubData");
-
-        float read_data[4] = {};
-        glGetNamedBufferSubData(
-            gl_buffer.get_handle(),
-            0,
-            sizeof(read_data),
-            read_data
-        );
-        check_gl_error("glGetNamedBufferSubData");
-        std::cout
-            << read_data[0] << " "
-            << read_data[1] << " "
-            << read_data[2] << " "
-            << read_data[3] << '\n';
+        std::this_thread::sleep_for(std::chrono::nanoseconds(1000000000 / 60));
     }
+}
 
-    invocation->draw(3);
-    device->present();
+// make sure that rendering arrays of triangles works
+// should render a rotating, shaded cube
+void test_model() {
+    auto device = engine::graphics::opengl::GLGraphicsDevice::create(800, 600, "test window");
+    fs::path vertex_path = fs::current_path() / "res/shaders/testing/rotate_model.vert";
+    fs::path fragment_path = fs::current_path() / "res/shaders/testing/rotate_model.frag";
+    auto program = create_rendering_program(
+        *device, 
+        vertex_path, 
+        fragment_path,
+        engine::graphics::PrimitiveTopology::TriangleList
+    );
 
-    std::this_thread::sleep_for(std::chrono::seconds(5));
+    auto cube_vertex_buffer = device->create_buffer(
+        sizeof(cube_vertices),
+        engine::graphics::BufferUsage::Vertex,
+        engine::graphics::BufferFrequency::Static,
+        cube_vertices
+    );
+    auto cube_normal_buffer = device->create_buffer(
+        sizeof(cube_normals),
+        engine::graphics::BufferUsage::Vertex,
+        engine::graphics::BufferFrequency::Static,
+        cube_normals
+    );
 
+    auto invocation = program->create_invocation(); 
+    invocation->bind_window();
+    invocation->bind_vertex_attribute(
+        *cube_vertex_buffer,
+        0,      // location
+        0,      // offset
+        12,     // stride
+        engine::graphics::VertexInputRate::Vertex,
+        engine::graphics::VertexFormat::Float32x3
+    );
+    invocation->bind_vertex_attribute(
+        *cube_normal_buffer,
+        1,      // location
+        0,      // offset
+        12,     // stride
+        engine::graphics::VertexInputRate::Vertex,
+        engine::graphics::VertexFormat::Float32x3
+    );
+    invocation->validate();
+
+    auto& window = device->get_window();
+    uint32_t window_width = window.get_width();
+    uint32_t window_height = window.get_height();
+
+    auto projection_token = invocation->get_uniform<glm::mat4>("camera.projection");
+    auto view_token = invocation->get_uniform<glm::mat4>("camera.view");
+
+    while(true) {
+        float time = std::chrono::duration<float>(std::chrono::steady_clock::now().time_since_epoch()).count();
+        float angle = time * 1.0f; // radians/sec
+        float radius = 2.0f;
+        float height = 1.0f;
+        glm::vec3 camera_position(
+            radius * std::cos(angle),
+            height,
+            radius * std::sin(angle)
+        );
+
+        glm::mat4 projection = glm::perspective(
+            glm::radians(90.0f),
+            window_width / static_cast<float>(window_height),
+            0.1f,
+            100.0f
+        );
+        glm::mat4 view = glm::lookAt(
+            camera_position,
+            glm::vec3(0.0f),
+            glm::vec3(0.0f, 1.0f, 0.0f)
+        );
+        invocation->set_uniform(projection_token, projection);
+        invocation->set_uniform(view_token, view);
+
+        invocation->draw(36);
+        device->present();
+
+        dynamic_cast<engine::graphics::opengl::GLGraphicsDevice&>(*device).gl_get_error();
+
+        std::this_thread::sleep_for(std::chrono::nanoseconds(1000000000 / 60));
+    }
+}
+
+// make sure that texture binding and sampling works
+// should render a full screen image
+void test_texture() {
+    auto device = engine::graphics::opengl::GLGraphicsDevice::create(800, 600, "test window");
+    fs::path vertex_path = fs::current_path() / "res/shaders/testing/texture.vert";
+    fs::path fragment_path = fs::current_path() / "res/shaders/testing/texture.frag";
+    auto program = create_rendering_program(
+        *device, 
+        vertex_path, 
+        fragment_path,
+        engine::graphics::PrimitiveTopology::TriangleList
+    );
+
+    auto cube_vertex_buffer = device->create_buffer(
+        sizeof(cube_vertices),
+        engine::graphics::BufferUsage::Vertex,
+        engine::graphics::BufferFrequency::Static,
+        cube_vertices
+    );
+    auto cube_normal_buffer = device->create_buffer(
+        sizeof(cube_normals),
+        engine::graphics::BufferUsage::Vertex,
+        engine::graphics::BufferFrequency::Static,
+        cube_normals
+    );
+    auto cube_uv_buffer = device->create_buffer(
+        sizeof(cube_uvs),
+        engine::graphics::BufferUsage::Vertex,
+        engine::graphics::BufferFrequency::Static,
+        cube_uvs
+    ); 
+
+    auto sampler = device->create_sampler();
+
+    fs::path image_path = fs::current_path() / "res/textures/astolfo.png";
+    auto image = engine::assets::Image::load_image(image_path);
+    auto texture = device->create_texture(
+        engine::graphics::TextureDimension::D2,
+        engine::graphics::TextureFormat::RGBA32F,
+        image.get_width(),
+        image.get_height(),
+        1,  // depth
+        1   // mip levels
+    );
+    texture->upload_data(image);
+
+    auto invocation = program->create_invocation(); 
+    invocation->bind_window();
+
+    invocation->bind_vertex_attribute(
+        *cube_vertex_buffer,
+        0,      // location
+        0,      // offset
+        12,     // stride
+        engine::graphics::VertexInputRate::Vertex,
+        engine::graphics::VertexFormat::Float32x3
+    );
+    invocation->bind_vertex_attribute(
+        *cube_normal_buffer,
+        1,      // location
+        0,      // offset
+        12,     // stride
+        engine::graphics::VertexInputRate::Vertex,
+        engine::graphics::VertexFormat::Float32x3
+    );
+    invocation->bind_vertex_attribute(
+        *cube_uv_buffer,
+        2,      // location
+        0,      // offset
+        8,      // stride
+        engine::graphics::VertexInputRate::Vertex,
+        engine::graphics::VertexFormat::Float32x2
+    );
+
+    invocation->bind_sampled_texture(
+        {0, 1},
+        *texture,
+        *sampler
+    );
+
+    invocation->validate();
+
+    auto& window = device->get_window();
+    uint32_t window_width = window.get_width();
+    uint32_t window_height = window.get_height();
+
+    auto projection_token = invocation->get_uniform<glm::mat4>("camera.projection");
+    auto view_token = invocation->get_uniform<glm::mat4>("camera.view");
+
+    while(true) {
+        float time = std::chrono::duration<float>(std::chrono::steady_clock::now().time_since_epoch()).count();
+        float angle = time * 1.0f; // radians/sec
+        float radius = 2.0f;
+        float height = 1.0f;
+        glm::vec3 camera_position(
+            radius * std::cos(angle),
+            height,
+            radius * std::sin(angle)
+        );
+
+        glm::mat4 projection = glm::perspective(
+            glm::radians(90.0f),
+            window_width / static_cast<float>(window_height),
+            0.1f,
+            100.0f
+        );
+        glm::mat4 view = glm::lookAt(
+            camera_position,
+            glm::vec3(0.0f),
+            glm::vec3(0.0f, 1.0f, 0.0f)
+        );
+        invocation->set_uniform(projection_token, projection);
+        invocation->set_uniform(view_token, view);
+
+        invocation->draw(36);
+        device->present();
+
+        dynamic_cast<engine::graphics::opengl::GLGraphicsDevice&>(*device).gl_get_error();
+
+        std::this_thread::sleep_for(std::chrono::nanoseconds(1000000000 / 60));
+    }
+}
+
+int main(int argc, char** argv) {
+
+    // test_uniform();
+    // test_model();
+    test_texture();
+
+    return 0;
 }

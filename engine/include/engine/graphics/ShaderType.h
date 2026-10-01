@@ -6,6 +6,8 @@
 #include <string>
 #include <memory>
 
+#include "Texture.h"
+
 namespace engine::graphics {
 
 enum class ShaderScalarType {
@@ -44,6 +46,33 @@ struct ShaderMatrixType {
     ShaderMatrixType(const ShaderMatrixType& other);
     ShaderMatrixType& operator=(const ShaderMatrixType& other);
     bool operator==(const ShaderMatrixType& other) const;
+};
+
+struct ShaderImageType {
+    using SampledType = std::variant<ShaderScalarType, ShaderVoidType>;
+    SampledType sampled_type;
+    TextureDimension dimension;
+    bool arrayed;
+    bool multisampled;
+
+    ShaderImageType(
+        SampledType sampled_type,
+        TextureDimension dimension,
+        bool arrayed,
+        bool multisampled
+    );
+    ShaderImageType(const ShaderImageType& other);
+    ShaderImageType& operator=(const ShaderImageType& other);
+    bool operator==(const ShaderImageType& other) const;
+};
+
+struct ShaderSampledImageType {
+    ShaderImageType image_type;
+
+    ShaderSampledImageType(ShaderImageType image_type);
+    ShaderSampledImageType(const ShaderSampledImageType& other);
+    ShaderSampledImageType& operator=(const ShaderSampledImageType& other);
+    bool operator==(const ShaderSampledImageType& other) const;
 };
 
 struct ShaderArrayType {
@@ -96,6 +125,8 @@ struct ShaderType {
         ShaderVoidType,
         ShaderVectorType,
         ShaderMatrixType,
+        ShaderImageType,
+        ShaderSampledImageType,
         ShaderArrayType,
         ShaderStructType,
         ShaderPointerType,
@@ -113,6 +144,8 @@ std::string to_string(const ShaderScalarType& type);
 std::string to_string(const ShaderVoidType& type);
 std::string to_string(const ShaderVectorType& type);
 std::string to_string(const ShaderMatrixType& type);
+std::string to_string(const ShaderImageType& type);
+std::string to_string(const ShaderSampledImageType& type);
 std::string to_string(const ShaderArrayType& type);
 std::string to_string(const ShaderStructType& type);
 std::string to_string(const ShaderPointerType& type);

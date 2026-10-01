@@ -9,6 +9,7 @@
 #include "engine/graphics/GraphicsDevice.h"
 #include "GLBuffer.h"
 #include "GLTexture.h"
+#include "GLSampler.h"
 #include "GLVertexArray.h"
 #include "GLRenderbuffer.h"
 #include "GLFramebuffer.h"
@@ -24,6 +25,7 @@ namespace engine::graphics::opengl {
 class GLGraphicsDevice : public engine::graphics::GraphicsDevice {
     friend class GLBuffer;
     friend class GLTexture;
+    friend class GLSampler;
     friend class GLVertexArray;
     friend class GLRenderbuffer;
     friend class GLFramebuffer;
@@ -66,15 +68,24 @@ public:
     GLBuffer gl_create_buffer(
         uint64_t size, 
         BufferUsage usage,
-        BufferFrequency frequency
+        BufferFrequency frequency,
+        const void* data
     );
     GLTexture gl_create_texture(
-        TextureType type, 
+        TextureDimension type, 
         TextureFormat format, 
         uint32_t width, 
         uint32_t height = 1, 
         uint32_t depth = 1, 
         uint32_t mip_levels = 1
+    );
+    GLSampler gl_create_sampler(
+        SamplerFilter min_filter,
+        SamplerFilter mag_filter,
+        SamplerMipmapFilter mipmap_filter,
+        SamplerAddressMode address_u,
+        SamplerAddressMode address_v,
+        SamplerAddressMode address_w
     );
     GLVertexArray gl_create_vertex_array();
     GLRenderbuffer gl_create_renderbuffer(
@@ -98,6 +109,7 @@ public:
     // resource deletion
     void gl_delete_buffer(GLuint handle);
     void gl_delete_texture(GLuint handle);
+    void gl_delete_sampler(GLuint handle);
     void gl_delete_vertex_array(GLuint handle);
     void gl_delete_renderbuffer(GLuint handle);
     void gl_delete_framebuffer(GLuint handle);
@@ -116,6 +128,7 @@ public:
 
     // resource binding
     void gl_bind_buffer(uint32_t slot, GLBuffer& buf);
+    void gl_bind_sampler(uint32_t slot, GLSampler& sampler);
     void gl_bind_texture(uint32_t slot, GLTexture& tex);
     void gl_bind_vertex_array(GLVertexArray& va);
     void gl_bind_framebuffer(GLFramebuffer& fb);
@@ -150,15 +163,24 @@ public:
     std::unique_ptr<engine::graphics::Buffer> create_buffer(
         uint64_t size, 
         BufferUsage usage,
-        BufferFrequency frequency
+        BufferFrequency frequency,
+        const void* data
     ) override;
     std::unique_ptr<engine::graphics::Texture> create_texture(
-        TextureType type, 
+        TextureDimension type, 
         TextureFormat format, 
         uint32_t width, 
         uint32_t height, 
         uint32_t depth, 
         uint32_t mip_levels
+    ) override;
+    std::unique_ptr<engine::graphics::Sampler> create_sampler(
+        SamplerFilter min_filter,
+        SamplerFilter mag_filter,
+        SamplerMipmapFilter mipmap_filter,
+        SamplerAddressMode address_u,
+        SamplerAddressMode address_v,
+        SamplerAddressMode address_w
     ) override;
 
     std::unique_ptr<engine::graphics::Shader> create_shader(
@@ -175,6 +197,7 @@ public:
     ) override;
 
     void present() override;
+    engine::graphics::Window& get_window() override;
 
 private:
     // the window that this graphics device is connected to
@@ -183,16 +206,15 @@ private:
     // whether or not we are inside an execution context
     bool executing = false;
 
-    uint32_t max_bound_textures;
-    std::vector<GLTexture*> bound_textures;
-
-    uint32_t max_bound_buffers;
-    std::vector<std::pair<GLBuffer*, BufferUsage>> bound_buffers;
+    std::vector<std::optional<GLBuffer*>> bound_uniform_buffers;
+    std::vector<std::optional<GLBuffer*>> bound_storage_buffers;
+    std::vector<std::optional<GLTexture*>> bound_textures;
+    std::vector<std::optional<GLSampler*>> bound_samplers;
 
     std::optional<GLVertexArray*> bound_vertex_array;
     std::optional<GLFramebuffer*> bound_framebuffer;
 
-    bool program_bound;
+    bool program_bound = false;
     std::optional<GLRenderingProgram*> bound_rendering_program;
     std::optional<GLComputeProgram*> bound_compute_program;
 };

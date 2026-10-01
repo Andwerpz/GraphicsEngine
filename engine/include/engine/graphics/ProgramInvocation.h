@@ -9,12 +9,16 @@
 
 #include <glm/glm.hpp>
 
+#include "ShaderInterface.h"
+#include "ShaderResource.h"
+
 namespace engine::graphics {
 
 class Resource;
 class Buffer;
 class Texture;
 class Program;
+class Sampler;
 class GraphicsDevice;
 
 // TODO need to handle non-buffer uniforms. These are probably more graphics API specific
@@ -22,6 +26,10 @@ class GraphicsDevice;
 //   or I suppose I could directly parse the spirv code as well 
 //   spirv-reflect doesn't seem to have a way to query these uniforms
 // TODO instead of immediately updating uniform buffers, lazily update them  
+
+// TODO maybe introduce the notion of a 'RenderTarget' 
+//   currently, we have to handle rendering to the window as a special case
+//   perhaps a RenderTarget could unify rendering to textures, or rendering directly to a window
 
 // resolved handle to a location in a uniform buffer 
 // tokens are templated in order to provide compile-time checks that your uniform types are correct
@@ -50,21 +58,59 @@ protected:
     // underlying program
     Program& program;
 
-    // map {set, binding} -> resource
-    std::map<std::pair<uint32_t, uint32_t>, std::reference_wrapper<Resource>> resources;
+    // map {set, binding} -> resource binding
+    struct ResourceBinding {
+        ShaderResourceType type;
+        struct UniformBuffer {
+            Buffer* buffer = nullptr;
+        } uniform_buffer;
+        struct SampledTexture {
+            Texture* texture = nullptr;
+            Sampler* sampler = nullptr;
+        } sampled_texture;
+
+        static ResourceBinding create_uniform_buffer(Buffer& buffer) {
+            ResourceBinding res;
+            res.type = ShaderResourceType::UniformBuffer;
+            res.uniform_buffer.buffer = &buffer;
+            return res;
+        }
+        static ResourceBinding create_sampled_texture(Texture& texture, Sampler& sampler) {
+            ResourceBinding res;
+            res.type = ShaderResourceType::SampledTexture;
+            res.sampled_texture.texture = &texture;
+            res.sampled_texture.sampler = &sampler;
+            return res;
+        }
+    };
+    std::map<ShaderResourceLocation, ResourceBinding> bound_resources;
 
     // uniform buffers managed by the invocation 
     // if a uniform buffer is not bound, the invocation will generate one
     std::vector<std::unique_ptr<Buffer>> uniform_buffers;
 
-public:
     // bind a resource to this program invocation
     // should be done before validation
-    void bind_resource(uint32_t set, uint32_t binding, Resource& resource);
-    void bind_resource(std::pair<uint32_t, uint32_t> location, Resource& resource);
+    void bind_resource(ShaderResourceLocation location, ResourceBinding resource);
 
-    Resource& get_resource(uint32_t set, uint32_t binding);
-    Resource& get_resource(std::pair<uint32_t, uint32_t> location);
+    // internal api to get some already bound resource binding
+    ResourceBinding& get_resource(ShaderResourceLocation location);
+
+public:
+    // user facing api to bind resources
+    // should correspond one-to-one with available ShaderResources 
+    void bind_uniform_buffer(
+        ShaderResourceLocation location, 
+        Buffer& uniform_buffer
+    );
+    void bind_sampled_texture(
+        ShaderResourceLocation location,
+        Texture& texture, 
+        Sampler& sampler
+    );
+
+    // user facing api to retrieve resources
+    Buffer& get_uniform_buffer(ShaderResourceLocation location);
 
     // should make sure that the resources contained here can actually be used to invoke the given program
     // should only be able to invoke the program after validating 
@@ -79,6 +125,7 @@ public:
     // use generated tokens to set uniform values 
     void set_uniform(UniformToken<float> token, float val);
     void set_uniform(UniformToken<glm::vec3> token, glm::vec3 val);
+    void set_uniform(UniformToken<glm::mat4> token, glm::mat4 val);
 
 protected:
     virtual void validate_impl() = 0;
@@ -144,6 +191,25 @@ protected:
     // this being true should be mutually exclusive with any other texture being bound
     bool bound_window = false;
 
+    // should be true if bind_depth_buffer() is called
+    // indicates that a depth buffer should be generated when validating
+    bool bound_depth_buffer = false;
+
+    // if true, enables depth testing
+    // defaults to true if a depth buffer is bound or rendering to the window, false otherwise
+    bool depth_testing = false;
+
+    // if true, clears the color attachments at the beginning of execution
+    bool clear_color = true;
+
+    // if true, clears the depth buffer at the beginning of execution
+    bool clear_depth = true;
+
+	virtual void draw_impl(
+        uint32_t nr_elements, 
+        uint32_t nr_instances
+    ) = 0;
+
 public:
     void bind_vertex_attribute(
         Buffer& buffer,
@@ -162,15 +228,18 @@ public:
         Texture& texture
     );
     void bind_window();
+    void bind_depth_buffer();
+
 	void draw(
         uint32_t nr_elements, 
         uint32_t nr_instances = 1
     );
 
-	virtual void draw_impl(
-        uint32_t nr_elements, 
-        uint32_t nr_instances
-    ) = 0;
+    // modifies the behaviour when executing the program
+    // can be set at any time
+    void do_depth_testing(bool val);
+    void do_clear_color(bool val);
+    void do_clear_depth(bool val);
 };
 
 class ComputeProgramInvocation : public ProgramInvocation {

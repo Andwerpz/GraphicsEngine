@@ -19,13 +19,16 @@ struct ShaderInterfaceVariable {
     std::string name;
 };
 
+// {set, binding}
+typedef std::pair<uint32_t, uint32_t> ShaderResourceLocation;
+
 struct ShaderInterface {
     // map location -> interface variable
     std::map<uint32_t, ShaderInterfaceVariable> inputs;
     std::map<uint32_t, ShaderInterfaceVariable> outputs;
 
     // map {set, binding} -> resource
-    std::map<std::pair<uint32_t, uint32_t>, ShaderResource> resources;
+    std::map<ShaderResourceLocation, ShaderResource> resources;
 
 	// will check that the left outputs match with the right inputs, and resources don't overlap 
 	//   if a discrepancy is detected, should be a runtime error 
@@ -34,7 +37,9 @@ struct ShaderInterface {
 
     void add_input_variable(uint32_t location, ShaderInterfaceVariable variable);
     void add_output_variable(uint32_t location, ShaderInterfaceVariable variable);
-    void add_resource(uint32_t set, uint32_t binding, ShaderResource resource);
+    void add_resource(ShaderResourceLocation location, ShaderResource resource);
+    
+    ShaderResourceType get_resource_type(ShaderResourceLocation location);
 };
     
 }
