@@ -295,6 +295,7 @@ GLTexture GLGraphicsDevice::gl_create_texture(
         case TextureDimension::Cube:
             glCreateTextures(GL_TEXTURE_CUBE_MAP, 1, &handle);
             glTextureStorage2D(handle, mip_levels, gl_internal_format, width, height);
+            std::cout << "Create cubemap : " << handle << std::endl;
             break;
         default:
             assert(false);

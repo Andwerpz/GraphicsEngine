@@ -56,7 +56,6 @@ public:
     SamplerFilter get_mag_filter() {
         return mag_filter;
     }
-
 };
 
 }

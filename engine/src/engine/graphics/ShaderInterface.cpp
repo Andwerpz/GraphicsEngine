@@ -75,6 +75,13 @@ void ShaderInterface::add_resource(ShaderResourceLocation location, ShaderResour
     resources.insert({location, resource});
 }
 
+ShaderResource& ShaderInterface::get_resource(ShaderResourceLocation location) {
+    if(!resources.contains(location)) {
+        engine::utils::throw_error("interface does not contain resource on location : {" + std::to_string(location.first) + ", " + std::to_string(location.second) + "}");
+    }
+    return resources.at(location);
+}
+
 ShaderResourceType ShaderInterface::get_resource_type(ShaderResourceLocation location) {
     if(!resources.contains(location)) {
         engine::utils::throw_error("interface does not contain resource on location : {" + std::to_string(location.first) + ", " + std::to_string(location.second) + "}");

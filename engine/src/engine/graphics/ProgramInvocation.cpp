@@ -58,9 +58,17 @@ void ProgramInvocation::bind_uniform_buffer(ShaderResourceLocation location, Buf
 }
 
 void ProgramInvocation::bind_sampled_texture(ShaderResourceLocation location, Texture& texture, Sampler& sampler) {
+    ShaderResource& resource = program.get_interface().get_resource(location);
+    
     // check underlying resource binding
-    if(program.get_interface().get_resource_type(location) != ShaderResourceType::SampledTexture) {
+    if(resource.base_type != ShaderResourceType::SampledTexture) {
         engine::utils::throw_error("bind_sampled_texture underlying resource descriptor is not SampledTexture");
+    }
+
+    // make sure texture dimension is correct
+    ShaderImageType& image_type = resource.sampled_texture.image_type;
+    if(image_type.dimension != texture.get_dimension()) {
+        engine::utils::throw_error("bind_sampled_texture texture dimension mismatch");
     }
     
     // bind resource

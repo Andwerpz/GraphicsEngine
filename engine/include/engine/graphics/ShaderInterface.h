@@ -39,6 +39,7 @@ struct ShaderInterface {
     void add_output_variable(uint32_t location, ShaderInterfaceVariable variable);
     void add_resource(ShaderResourceLocation location, ShaderResource resource);
     
+    ShaderResource& get_resource(ShaderResourceLocation location);
     ShaderResourceType get_resource_type(ShaderResourceLocation location);
 };
     

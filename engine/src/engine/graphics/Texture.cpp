@@ -32,36 +32,37 @@ Texture::Texture(
 
 Texture::~Texture() = default;
 
-uint64_t Texture::get_size(uint32_t mip_level) const {
-    assert(mip_level < mip_levels);
-
-    // determine size of each pixel
-    uint64_t px_size;
+uint64_t Texture::get_texel_size() const {
     switch(format) {
     case TextureFormat::RGBA32F:
-        px_size = 4 * 4;
-        break;
+        return 4 * 4;
     case TextureFormat::Depth32F:
-        px_size = 4;
-        break;
+        return 4;
     default:
         assert(false);
     }
+}
 
-    // determine number of pixels
+uint64_t Texture::get_size(uint32_t mip_level) const {
+    assert(mip_level < mip_levels);
+
+    // determine size of each texel
+    uint64_t tx_size = get_texel_size();
+
+    // determine number of texels
     uint32_t mip_width  = std::max(1u, width  >> mip_level);
     uint32_t mip_height = std::max(1u, height >> mip_level);
     uint32_t mip_depth  = std::max(1u, depth  >> mip_level);
-    uint64_t nr_pixels = 
+    uint64_t nr_texels = 
         (uint64_t) mip_width * 
         (uint64_t) mip_height * 
         (uint64_t) mip_depth
     ;
     
-    return px_size * nr_pixels;
+    return tx_size * nr_texels;
 }
 
-void Texture::upload_data(
+void Texture::upload_image(
     engine::assets::Image& image,
     uint32_t mip_level,
     uint32_t cube_face

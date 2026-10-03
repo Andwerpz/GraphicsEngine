@@ -8,7 +8,9 @@ namespace fs = std::filesystem;
 namespace engine::assets {
 
 // 2D grid of pixels
+// origin should be the top left (the first pixel in the data)
 
+// format of each pixel
 enum class ImageFormat {
     RGBA8,
 };
@@ -48,9 +50,14 @@ private:
         std::vector<std::byte>&& data
     );
 
+    // image dimensions
     uint32_t width;
     uint32_t height;
+
+    // data format
     ImageFormat format;
+
+    // opaque byte array
     std::vector<std::byte> data;
 };
 

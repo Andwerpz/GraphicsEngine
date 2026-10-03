@@ -240,10 +240,10 @@ void test_uniform() {
 
 // make sure that rendering arrays of triangles works
 // should render a rotating, shaded cube
-void test_model() {
+void test_cube() {
     auto device = engine::graphics::opengl::GLGraphicsDevice::create(800, 600, "test window");
-    fs::path vertex_path = fs::current_path() / "res/shaders/testing/rotate_model.vert";
-    fs::path fragment_path = fs::current_path() / "res/shaders/testing/rotate_model.frag";
+    fs::path vertex_path = fs::current_path() / "res/shaders/testing/cube.vert";
+    fs::path fragment_path = fs::current_path() / "res/shaders/testing/cube.frag";
     auto program = create_rendering_program(
         *device, 
         vertex_path, 
@@ -369,7 +369,7 @@ void test_texture() {
         1,  // depth
         1   // mip levels
     );
-    texture->upload_data(image);
+    texture->upload_image(image);
 
     auto invocation = program->create_invocation(); 
     invocation->bind_window();
@@ -448,11 +448,217 @@ void test_texture() {
     }
 }
 
+void test_skybox() {
+    auto device = engine::graphics::opengl::GLGraphicsDevice::create(800, 600, "test window");
+
+    auto cube_program = create_rendering_program(
+        *device,
+        fs::current_path() / "res/shaders/testing/texture.vert", 
+        fs::current_path() / "res/shaders/testing/texture.frag",
+        engine::graphics::PrimitiveTopology::TriangleList
+    );
+    auto skybox_program = create_rendering_program(
+        *device, 
+        fs::current_path() / "res/shaders/testing/skybox.vert", 
+        fs::current_path() / "res/shaders/testing/skybox.frag",
+        engine::graphics::PrimitiveTopology::TriangleList
+    );
+
+    auto cube_vertex_buffer = device->create_buffer(
+        sizeof(cube_vertices),
+        engine::graphics::BufferUsage::Vertex,
+        engine::graphics::BufferFrequency::Static,
+        cube_vertices
+    );
+    auto cube_normal_buffer = device->create_buffer(
+        sizeof(cube_normals),
+        engine::graphics::BufferUsage::Vertex,
+        engine::graphics::BufferFrequency::Static,
+        cube_normals
+    );
+    auto cube_uv_buffer = device->create_buffer(
+        sizeof(cube_uvs),
+        engine::graphics::BufferUsage::Vertex,
+        engine::graphics::BufferFrequency::Static,
+        cube_uvs
+    ); 
+
+    auto sampler = device->create_sampler();
+
+    auto texture_image = engine::assets::Image::load_image(fs::current_path() / "res/textures/astolfo.png");
+    auto texture = device->create_texture(
+        engine::graphics::TextureDimension::D2,
+        engine::graphics::TextureFormat::RGBA32F,
+        texture_image.get_width(),
+        texture_image.get_height(),
+        1,  // depth
+        1   // mip levels
+    );
+    texture->upload_image(texture_image);
+
+    auto** skybox_image = (engine::assets::Image**) malloc(sizeof(engine::assets::Image*) * 6);
+    const char* skybox_strs[] = {
+        "right.jpg",   // +X
+        "left.jpg",    // -X
+        "top.jpg",     // +Y
+        "bottom.jpg",  // -Y
+        "front.jpg",   // +Z
+        "back.jpg",    // -Z
+    };
+    for(int i = 0; i < 6; i++) {
+        auto image = engine::assets::Image::load_image(fs::current_path() / "res/textures/lake" / skybox_strs[i]);
+        skybox_image[i] = new engine::assets::Image(std::move(image));
+    }
+    auto skybox = device->create_texture(
+        engine::graphics::TextureDimension::Cube,
+        engine::graphics::TextureFormat::RGBA32F,
+        skybox_image[0]->get_width(),
+        skybox_image[0]->get_height(),
+        1,
+        1
+    );
+    for(int i = 0; i < 6; i++) {
+        skybox->upload_image(*skybox_image[i], 0, i);
+    }
+
+    auto skybox_invocation = skybox_program->create_invocation(); 
+    {
+        skybox_invocation->bind_window();
+
+        skybox_invocation->bind_vertex_attribute(
+            *cube_vertex_buffer,
+            0,      // location
+            0,      // offset
+            12,     // stride
+            engine::graphics::VertexInputRate::Vertex,
+            engine::graphics::VertexFormat::Float32x3
+        );
+        skybox_invocation->bind_vertex_attribute(
+            *cube_normal_buffer,
+            1,      // location
+            0,      // offset
+            12,     // stride
+            engine::graphics::VertexInputRate::Vertex,
+            engine::graphics::VertexFormat::Float32x3
+        );
+        skybox_invocation->bind_vertex_attribute(
+            *cube_uv_buffer,
+            2,      // location
+            0,      // offset
+            8,      // stride
+            engine::graphics::VertexInputRate::Vertex,
+            engine::graphics::VertexFormat::Float32x2
+        );
+
+        skybox_invocation->bind_sampled_texture(
+            {0, 1},
+            *skybox,
+            *sampler
+        );
+
+        skybox_invocation->validate();
+    }
+
+    auto cube_invocation = cube_program->create_invocation();
+    {
+        cube_invocation->bind_window();
+        
+        cube_invocation->bind_vertex_attribute(
+            *cube_vertex_buffer,
+            0,      // location
+            0,      // offset
+            12,     // stride
+            engine::graphics::VertexInputRate::Vertex,
+            engine::graphics::VertexFormat::Float32x3
+        );
+        cube_invocation->bind_vertex_attribute(
+            *cube_normal_buffer,
+            1,      // location
+            0,      // offset
+            12,     // stride
+            engine::graphics::VertexInputRate::Vertex,
+            engine::graphics::VertexFormat::Float32x3
+        );
+        cube_invocation->bind_vertex_attribute(
+            *cube_uv_buffer,
+            2,      // location
+            0,      // offset
+            8,      // stride
+            engine::graphics::VertexInputRate::Vertex,
+            engine::graphics::VertexFormat::Float32x2
+        );
+
+        cube_invocation->bind_sampled_texture(
+            {0, 1},
+            *texture,
+            *sampler
+        );
+
+        cube_invocation->validate();
+    }
+
+    auto& window = device->get_window();
+    uint32_t window_width = window.get_width();
+    uint32_t window_height = window.get_height();
+
+    auto skybox_projection = skybox_invocation->get_uniform<glm::mat4>("camera.projection");
+    auto skybox_view = skybox_invocation->get_uniform<glm::mat4>("camera.view");
+    auto cube_projection = cube_invocation->get_uniform<glm::mat4>("camera.projection");
+    auto cube_view = cube_invocation->get_uniform<glm::mat4>("camera.view");
+
+    cube_invocation->do_clear_color(false);
+    cube_invocation->do_clear_depth(true);
+
+    while(true) {
+        float time = std::chrono::duration<float>(std::chrono::steady_clock::now().time_since_epoch()).count();
+        float angle = time * 1.0f; // radians/sec
+        float radius = 2.0f;
+        float height = 1.0f;
+        glm::vec3 camera_position(
+            radius * std::cos(angle),
+            height,
+            radius * std::sin(angle)
+        );
+
+        glm::mat4 projection = glm::perspective(
+            glm::radians(90.0f),
+            window_width / static_cast<float>(window_height),
+            0.1f,
+            100.0f
+        );
+        glm::mat4 view = glm::lookAt(
+            camera_position,
+            glm::vec3(0.0f),
+            glm::vec3(0.0f, 1.0f, 0.0f)
+        );
+
+        skybox_invocation->set_uniform(skybox_projection, projection);
+        skybox_invocation->set_uniform(skybox_view, view);
+        skybox_invocation->draw(36);
+
+        cube_invocation->set_uniform(cube_projection, projection);
+        cube_invocation->set_uniform(cube_view, view);
+        cube_invocation->draw(36);
+
+        device->present();
+
+        dynamic_cast<engine::graphics::opengl::GLGraphicsDevice&>(*device).gl_get_error();
+
+        std::this_thread::sleep_for(std::chrono::nanoseconds(1000000000 / 60));
+    }
+}
+
+void test_model() {
+    
+}
+
 int main(int argc, char** argv) {
 
     // test_uniform();
+    // test_cube();
+    // test_texture();
+    test_skybox();
     // test_model();
-    test_texture();
 
     return 0;
 }

@@ -24,8 +24,14 @@ public:
 
     void upload_data(
         const void* data,
-        uint32_t mip_level = 0,
-        uint32_t cube_face = 0
+        uint32_t mip_level,
+        uint32_t cube_face
+    ) override;
+
+    void retrieve_data(
+        const void* data,
+        uint32_t mip_level,
+        uint32_t cube_face
     ) override;
 
     void generate_mipmaps() override;
