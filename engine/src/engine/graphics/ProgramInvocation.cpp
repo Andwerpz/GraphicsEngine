@@ -119,7 +119,14 @@ void ProgramInvocation::validate() {
                 break;
             }
             case ShaderResourceType::SampledTexture: {
-                
+                // make sure sampled texture is bound
+                ResourceBinding& resource = get_resource(location);
+                if(resource.type != ShaderResourceType::SampledTexture) {
+                    engine::utils::throw_error("non-sampled texture bound to sampled texture");
+                }
+
+                // check type of sampled texture
+                // TODO
                 break;
             }
             default:
@@ -373,8 +380,8 @@ RenderingProgramInvocation::RenderingProgramInvocation(
 }
 
 void RenderingProgramInvocation::bind_vertex_attribute(
-    Buffer& buffer,
     uint32_t location,
+    Buffer& buffer,
     uint32_t offset,
     uint32_t stride,
     VertexInputRate rate,
@@ -384,10 +391,8 @@ void RenderingProgramInvocation::bind_vertex_attribute(
     assert(!validated);
 
     // make sure that this location hasn't been bound to yet
-    for(VertexAttributeBinding& binding : attribute_bindings) {
-        if(binding.location == location) {
-            engine::utils::throw_error("bind_vertex_attribute location already bound : " + std::to_string(location));
-        }
+    if(attribute_bindings.contains(location)) {
+        engine::utils::throw_error("bind_vertex_attribute location already bound : " + std::to_string(location));
     }
 
     // make sure the buffer is a vertex buffer
@@ -396,14 +401,13 @@ void RenderingProgramInvocation::bind_vertex_attribute(
     }
 
     // add binding
-    attribute_bindings.emplace_back((VertexAttributeBinding) {
+    attribute_bindings.insert({location, (VertexAttributeBinding) {
         buffer,
-        location,
         offset,
         stride,
         rate,
         format
-    });
+    }});
 }
 
 void RenderingProgramInvocation::bind_index_buffer(
@@ -430,47 +434,32 @@ void RenderingProgramInvocation::bind_index_buffer(
     });
 }
 
-void RenderingProgramInvocation::bind_output_texture(
-    uint32_t location,
-    Texture& texture
+void RenderingProgramInvocation::bind_render_target(
+    RenderTarget& target
 ) {
     // make sure we haven't validated
     assert(!validated);
 
-    // make sure we haven't bound the window
-    assert(!bound_window);
-
-    // make sure we haven't bound a texture to this location
-    for(OutputBinding& binding : output_bindings) {
-        if(binding.location == location) {
-            engine::utils::throw_error("bind_output_texture location already bound");
-        }
+    // make sure render target is validated
+    if(!target.is_validated()) {
+        engine::utils::throw_error("render target must be validated before being bound to program invocation");
     }
 
-    // add binding
-    output_bindings.emplace_back((OutputBinding) {
-        location, texture
-    });
-}
+    // check bound textures against interface
+    // make sure all output interface variables have a corresponding output in the target
+    for(const auto& [location, output_var] : program.get_interface().outputs) {
+        if(!target.has_output(location)) {
+            engine::utils::throw_error("render target does not have an output for variable : " + output_var.name);
+        }
 
-void RenderingProgramInvocation::bind_window() {
-    // make sure we haven't validated
-    assert(!validated);
+        // TODO make sure type of output is compatible?
+    }
 
-    // make sure that we haven't bound any textures
-    assert(output_bindings.size() == 0);
-    bound_window = true;
-
-    // we assume the window has a depth buffer
-    depth_testing = true;
-}
-
-void RenderingProgramInvocation::bind_depth_buffer() {
-    // make sure we haven't validated
-    assert(!validated);
-
-    // depth testing should be defaulted to true
-    depth_testing = true;
+    // save render target
+    if(target.has_depth_buffer()) {
+        depth_testing = true;
+    }
+    render_target.emplace(target);
 }
 
 void RenderingProgramInvocation::draw(

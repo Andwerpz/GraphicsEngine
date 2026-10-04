@@ -11,6 +11,7 @@
 
 #include "ShaderInterface.h"
 #include "ShaderResource.h"
+#include "RenderTarget.h"
 
 namespace engine::graphics {
 
@@ -164,13 +165,12 @@ protected:
 	// mapping a vertex buffer to an input interface variable
 	struct VertexAttributeBinding {
 		Buffer& buffer;         // what buffer to use 
-		uint32_t location;      // what interface variable to bind to 
 		uint32_t offset;        // byte of the first element
 		uint32_t stride;        // bytes between the start of each element
 		VertexInputRate rate;   // how to map elements
 		VertexFormat format;    // how to interpret elements
 	};
-	std::vector<VertexAttributeBinding> attribute_bindings;
+    std::map<uint32_t, VertexAttributeBinding> attribute_bindings;
 
 	// optionally bind an index buffer for indexed rendering
 	struct IndexBufferBinding {
@@ -179,24 +179,12 @@ protected:
 	};
 	std::optional<IndexBufferBinding> index_buffer;
 
-    // mapping a texture to an output interface variable
-    struct OutputBinding {
-        uint32_t location;      // fragment shader output index
-        Texture& texture;       // what texture to use 
-    };
-    std::vector<OutputBinding> output_bindings;
-
-    // should be true if bind_window() is called
-    // indicates this invocation should render directly to whatever window is managed by the graphics device
-    // this being true should be mutually exclusive with any other texture being bound
-    bool bound_window = false;
-
-    // should be true if bind_depth_buffer() is called
-    // indicates that a depth buffer should be generated when validating
-    bool bound_depth_buffer = false;
+    // target this invocation will render to
+    // render target should be validated before being bound
+    std::optional<std::reference_wrapper<RenderTarget>> render_target;
 
     // if true, enables depth testing
-    // defaults to true if a depth buffer is bound or rendering to the window, false otherwise
+    // defaults to true if a depth buffer is bound to the render target, false otherwise
     bool depth_testing = false;
 
     // if true, clears the color attachments at the beginning of execution
@@ -212,8 +200,8 @@ protected:
 
 public:
     void bind_vertex_attribute(
-        Buffer& buffer,
         uint32_t location,
+        Buffer& buffer,
         uint32_t offset,
         uint32_t stride,
         VertexInputRate rate,
@@ -223,12 +211,9 @@ public:
         Buffer& buffer,
         IndexFormat format
     );
-    void bind_output_texture(
-        uint32_t location,
-        Texture& texture
+    void bind_render_target(
+        RenderTarget& target
     );
-    void bind_window();
-    void bind_depth_buffer();
 
 	void draw(
         uint32_t nr_elements, 

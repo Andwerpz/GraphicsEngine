@@ -14,6 +14,9 @@ void main() {
     vec3 base_color = texture(albedo, frag_uv).xyz;
     color = vec4(base_color * diffuse, 1.0);
 
+    float edge_dist = min(min(abs(frag_uv.x), abs(frag_uv.x - 1.0)), min(abs(frag_uv.y), abs(frag_uv.y - 1.0)));
+    if(edge_dist < 0.02) color = vec4(1.0);
+
     // color = vec4(frag_normal * 0.5 + 0.5, 1.0);
     // color = vec4(base_color, 1.0);
 }

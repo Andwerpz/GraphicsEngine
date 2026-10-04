@@ -16,36 +16,60 @@ GLRenderingProgramInvocation::GLRenderingProgramInvocation(
 }
 
 void GLRenderingProgramInvocation::validate_impl() {
-    // make sure that all inputs are bound
-    // TODO
+    // check shader interface inputs
+    for(const auto& [location, input_var] : program.get_interface().inputs) {
+        // make sure there is a corresponding vertex attribute bound
+        if(!attribute_bindings.contains(location)) {
+            engine::utils::throw_error("no vertex attribute bound for input variable : " + input_var.name);
+        }
 
-    // make sure no two outputs are bound to the same texture
-    // TODO
-    
-    // make sure no two textures are bound to the same output
-    // TODO
+        // make sure vertex attribute format matches type of input variable
+        // TODO expand this to handle conversions 
+        //   for example, a byte array could be interpreted as an array of vec4s
 
-    // make sure all bound textures have the same dimension
-    // TODO
+        // VertexFormat format = attribute_bindings.at(location).format;
+        // ShaderType expected_type = ShaderType(ShaderVoidType());
+        // switch(format) {
+        //     case VertexFormat::Float32x1:
+        //         expected_type = ShaderType(ShaderScalarType::Float);
+        //         break;
+        //     case VertexFormat::Float32x2:
+        //         expected_type = ShaderType(ShaderVectorType(ShaderScalarType::Float, 2));
+        //         break;
+        //     case VertexFormat::Float32x3:
+        //         expected_type = ShaderType(ShaderVectorType(ShaderScalarType::Float, 3));
+        //         break;
+        //     case VertexFormat::Float32x4:
+        //         expected_type = ShaderType(ShaderVectorType(ShaderScalarType::Float, 4));
+        //         break;
+        //     default:
+        //         assert(false);
+        // }
+        // if(!(input_var.type == expected_type)) {
+        //     engine::utils::throw_error("input variable \"" + input_var.name + "\" has format " + to_string(input_var.type) + " while vertex attribute has format : " + to_string(expected_type));
+        // }
+    }
 
     // create vertex array 
     gl_vertex_array.emplace(gl_device.gl_create_vertex_array());
-    for(VertexAttributeBinding& binding : attribute_bindings) {
+    for(const auto& [location, binding] : attribute_bindings) {
+        assert(dynamic_cast<GLBuffer*>(&binding.buffer) != nullptr);
         GLBuffer& gl_buffer = dynamic_cast<GLBuffer&>(binding.buffer);
         gl_vertex_array.value().gl_bind_vertex_buffer(
-            binding.location,
+            location,
             gl_buffer,
             binding.offset,
             binding.stride
         );
         gl_vertex_array.value().gl_bind_vertex_attribute(
-            binding.location,
-            binding.location,
+            location,
+            location,
             binding.format,
             0
         );
     }
     if(index_buffer.has_value()) {
+        assert(dynamic_cast<GLBuffer*>(&index_buffer.value().buffer) != nullptr);
         GLBuffer& gl_buffer = dynamic_cast<GLBuffer&>(index_buffer.value().buffer);
         gl_vertex_array.value().gl_bind_index_buffer(
             gl_buffer,
@@ -53,46 +77,18 @@ void GLRenderingProgramInvocation::validate_impl() {
         );
     }
 
-    // create framebuffer
-    if(bound_window) {
-        gl_framebuffer.emplace(gl_device.gl_get_window_framebuffer());
+    // get render target 
+    assert(render_target.has_value());
+    assert(render_target.value().get().is_validated());
+    if(dynamic_cast<GLTextureRenderTarget*>(&(render_target.value().get())) != nullptr) {
+        GLTextureRenderTarget& gl_target = dynamic_cast<GLTextureRenderTarget&>(render_target.value().get());
+        gl_framebuffer.emplace(gl_target.get_framebuffer());
     }
-    else {
-        gl_framebuffer.emplace(gl_device.gl_create_framebuffer());
-        
-        // bind color attachments
-        std::vector<GLenum> output_mapping(program.get_output_location_extent(), GL_NONE);
-        uint32_t color_attachment_ind = 0;
-        for(OutputBinding& binding : output_bindings) {
-            GLTexture& gl_texture = dynamic_cast<GLTexture&>(binding.texture);
-            gl_framebuffer.value().gl_bind_color_attachment(
-                color_attachment_ind,
-                gl_texture
-            );
-            output_mapping[binding.location] = GL_COLOR_ATTACHMENT0 + color_attachment_ind;
-            color_attachment_ind ++;
-        }
-        gl_framebuffer.value().gl_set_draw_buffers(output_mapping);
-
-        // bind depth buffer
-        if(bound_depth_buffer) {
-            // TODO right now it's not too clear to me how i'm going to derive the dimensions of the depth buffer
-            //  maybe all RenderingProgramInvocations should have a clear dimension
-            //  or maybe the idea of a 'dimensioned framebuffer' should be made part of the high level API
-            //  and a RenderingProgramInvocation just renders to this 'RenderTarget' abstraction
-            assert(false);
-            // gl_depth_buffer.emplace(gl_device.gl_create_renderbuffer(
-            //     TextureFormat::Depth32F,
-            //     width,
-            //     height
-            // ));
-            // gl_framebuffer.value().gl_bind_depth_attachment(gl_depth_buffer.value());
-        }
-
-        if(!gl_framebuffer.value().gl_is_complete()) {
-            throw std::runtime_error("validate_impl failed to create framebuffer");
-        }
+    else if(dynamic_cast<GLWindowRenderTarget*>(&(render_target.value().get())) != nullptr) {
+        GLWindowRenderTarget& gl_target = dynamic_cast<GLWindowRenderTarget&>(render_target.value().get());
+        gl_framebuffer.emplace(gl_target.get_framebuffer());
     }
+    else assert(false);
 }
 
 void GLRenderingProgramInvocation::draw_impl(
@@ -156,6 +152,13 @@ void GLRenderingProgramInvocation::draw_impl(
             (clear_depth ? GL_DEPTH_BUFFER_BIT : 0);
         glClear(clear_flags);
     }
+
+    gl_device.gl_set_viewport(
+        0, 0, 
+        render_target.value().get().get_width(),
+        render_target.value().get().get_height()
+    );
+
     gl_device.gl_bind_rendering_program(gl_program);
     if(gl_vertex_array.value().has_index_buffer()) {
         if(nr_instances == 1) {

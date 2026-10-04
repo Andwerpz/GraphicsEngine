@@ -13,6 +13,7 @@
 #include "GLVertexArray.h"
 #include "GLRenderbuffer.h"
 #include "GLFramebuffer.h"
+#include "GLRenderTarget.h"
 #include "GLShader.h"
 #include "GLProgram.h"
 #include "GLWindow.h"
@@ -29,6 +30,8 @@ class GLGraphicsDevice : public engine::graphics::GraphicsDevice {
     friend class GLVertexArray;
     friend class GLRenderbuffer;
     friend class GLFramebuffer;
+    friend class GLTextureRenderTarget;
+    friend class GLWindowRenderTarget;
     friend class GLShader;
     friend class GLGraphicsProgram;
     friend class GLComputeProgram;
@@ -182,6 +185,12 @@ public:
         SamplerAddressMode address_v,
         SamplerAddressMode address_w
     ) override;
+
+    std::unique_ptr<engine::graphics::TextureRenderTarget> create_render_target(
+        uint32_t width,
+        uint32_t height
+    ) override;
+    std::unique_ptr<engine::graphics::WindowRenderTarget> create_window_render_target() override;
 
     std::unique_ptr<engine::graphics::Shader> create_shader(
         fs::path source_path

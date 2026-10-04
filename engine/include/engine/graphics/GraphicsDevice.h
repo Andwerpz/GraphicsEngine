@@ -7,6 +7,7 @@ namespace fs = std::filesystem;
 #include "Buffer.h"
 #include "Texture.h"
 #include "Sampler.h"
+#include "RenderTarget.h"
 #include "Shader.h"
 #include "Program.h"
 #include "ProgramInvocation.h"
@@ -57,6 +58,15 @@ public:
         SamplerAddressMode address_v = SamplerAddressMode::Repeat,
         SamplerAddressMode address_w = SamplerAddressMode::Repeat
     ) = 0;
+
+    // should return an unvalidated texture render target
+    virtual std::unique_ptr<TextureRenderTarget> create_render_target(
+        uint32_t width,
+        uint32_t height
+    ) = 0;
+
+    // should return a pre-validated window render target
+    virtual std::unique_ptr<WindowRenderTarget> create_window_render_target() = 0;
 
     // should compile the given shader for the underlying graphics device 
     virtual std::unique_ptr<Shader> create_shader(

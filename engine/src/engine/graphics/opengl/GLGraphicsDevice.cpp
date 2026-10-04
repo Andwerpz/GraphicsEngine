@@ -1026,6 +1026,26 @@ std::unique_ptr<engine::graphics::Sampler> GLGraphicsDevice::create_sampler(
     )));
 }
 
+std::unique_ptr<engine::graphics::TextureRenderTarget> GLGraphicsDevice::create_render_target(
+    uint32_t width,
+    uint32_t height
+) {
+    return std::make_unique<GLTextureRenderTarget>(std::move(GLTextureRenderTarget(
+        width,
+        height,
+        *this,
+        gl_create_framebuffer()
+    )));
+}
+
+std::unique_ptr<engine::graphics::WindowRenderTarget> GLGraphicsDevice::create_window_render_target() {
+    auto retval = std::make_unique<GLWindowRenderTarget>(std::move(GLWindowRenderTarget(
+        *this
+    )));
+    retval->validate();
+    return retval;
+}
+
 std::unique_ptr<engine::graphics::RenderingProgram> GLGraphicsDevice::create_rendering_program(
     engine::graphics::Shader& _vertex, 
     engine::graphics::Shader& _fragment,

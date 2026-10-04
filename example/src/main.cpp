@@ -213,8 +213,10 @@ void test_uniform() {
         engine::graphics::PrimitiveTopology::TriangleList
     );
 
+    auto window_render_target = device->create_window_render_target();
+
     auto invocation = program->create_invocation(); 
-    invocation->bind_window();
+    invocation->bind_render_target(*window_render_target);
     invocation->validate();
 
     // auto token = invocation->get_uniform<float>("bar.foo2.arr[1][67]");
@@ -263,20 +265,21 @@ void test_cube() {
         engine::graphics::BufferFrequency::Static,
         cube_normals
     );
-
+    
+    auto window_render_target = device->create_window_render_target();
     auto invocation = program->create_invocation(); 
-    invocation->bind_window();
+    invocation->bind_render_target(*window_render_target);
     invocation->bind_vertex_attribute(
-        *cube_vertex_buffer,
         0,      // location
+        *cube_vertex_buffer,
         0,      // offset
         12,     // stride
         engine::graphics::VertexInputRate::Vertex,
         engine::graphics::VertexFormat::Float32x3
     );
     invocation->bind_vertex_attribute(
-        *cube_normal_buffer,
         1,      // location
+        *cube_normal_buffer,
         0,      // offset
         12,     // stride
         engine::graphics::VertexInputRate::Vertex,
@@ -371,28 +374,29 @@ void test_texture() {
     );
     texture->upload_image(image);
 
+    auto window_render_target = device->create_window_render_target();
     auto invocation = program->create_invocation(); 
-    invocation->bind_window();
+    invocation->bind_render_target(*window_render_target);
 
     invocation->bind_vertex_attribute(
-        *cube_vertex_buffer,
         0,      // location
+        *cube_vertex_buffer,
         0,      // offset
         12,     // stride
         engine::graphics::VertexInputRate::Vertex,
         engine::graphics::VertexFormat::Float32x3
     );
     invocation->bind_vertex_attribute(
-        *cube_normal_buffer,
         1,      // location
+        *cube_normal_buffer,
         0,      // offset
         12,     // stride
         engine::graphics::VertexInputRate::Vertex,
         engine::graphics::VertexFormat::Float32x3
     );
     invocation->bind_vertex_attribute(
-        *cube_uv_buffer,
         2,      // location
+        *cube_uv_buffer,
         0,      // offset
         8,      // stride
         engine::graphics::VertexInputRate::Vertex,
@@ -448,8 +452,10 @@ void test_texture() {
     }
 }
 
+// make sure cubemaps work
 void test_skybox() {
     auto device = engine::graphics::opengl::GLGraphicsDevice::create(800, 600, "test window");
+    auto window_render_target = device->create_window_render_target();
 
     auto cube_program = create_rendering_program(
         *device,
@@ -523,27 +529,27 @@ void test_skybox() {
 
     auto skybox_invocation = skybox_program->create_invocation(); 
     {
-        skybox_invocation->bind_window();
+        skybox_invocation->bind_render_target(*window_render_target);
 
         skybox_invocation->bind_vertex_attribute(
-            *cube_vertex_buffer,
             0,      // location
+            *cube_vertex_buffer,
             0,      // offset
             12,     // stride
             engine::graphics::VertexInputRate::Vertex,
             engine::graphics::VertexFormat::Float32x3
         );
         skybox_invocation->bind_vertex_attribute(
-            *cube_normal_buffer,
             1,      // location
+            *cube_normal_buffer,
             0,      // offset
             12,     // stride
             engine::graphics::VertexInputRate::Vertex,
             engine::graphics::VertexFormat::Float32x3
         );
         skybox_invocation->bind_vertex_attribute(
-            *cube_uv_buffer,
             2,      // location
+            *cube_uv_buffer,
             0,      // offset
             8,      // stride
             engine::graphics::VertexInputRate::Vertex,
@@ -561,27 +567,27 @@ void test_skybox() {
 
     auto cube_invocation = cube_program->create_invocation();
     {
-        cube_invocation->bind_window();
+        cube_invocation->bind_render_target(*window_render_target);
         
         cube_invocation->bind_vertex_attribute(
-            *cube_vertex_buffer,
             0,      // location
+            *cube_vertex_buffer,
             0,      // offset
             12,     // stride
             engine::graphics::VertexInputRate::Vertex,
             engine::graphics::VertexFormat::Float32x3
         );
         cube_invocation->bind_vertex_attribute(
-            *cube_normal_buffer,
             1,      // location
+            *cube_normal_buffer,
             0,      // offset
             12,     // stride
             engine::graphics::VertexInputRate::Vertex,
             engine::graphics::VertexFormat::Float32x3
         );
         cube_invocation->bind_vertex_attribute(
-            *cube_uv_buffer,
             2,      // location
+            *cube_uv_buffer,
             0,      // offset
             8,      // stride
             engine::graphics::VertexInputRate::Vertex,
@@ -648,6 +654,176 @@ void test_skybox() {
     }
 }
 
+// make sure we can render to a texture via texture render target
+void test_render_target() {
+    auto device = engine::graphics::opengl::GLGraphicsDevice::create(800, 600, "test window");
+
+    auto cube_program = create_rendering_program(
+        *device, 
+        fs::current_path() / "res/shaders/testing/cube.vert", 
+        fs::current_path() / "res/shaders/testing/cube.frag",
+        engine::graphics::PrimitiveTopology::TriangleList
+    );
+    auto program = create_rendering_program(
+        *device, 
+        fs::current_path() / "res/shaders/testing/texture.vert", 
+        fs::current_path() / "res/shaders/testing/texture.frag",
+        engine::graphics::PrimitiveTopology::TriangleList
+    );
+
+    auto cube_vertex_buffer = device->create_buffer(
+        sizeof(cube_vertices),
+        engine::graphics::BufferUsage::Vertex,
+        engine::graphics::BufferFrequency::Static,
+        cube_vertices
+    );
+    auto cube_normal_buffer = device->create_buffer(
+        sizeof(cube_normals),
+        engine::graphics::BufferUsage::Vertex,
+        engine::graphics::BufferFrequency::Static,
+        cube_normals
+    );
+    auto cube_uv_buffer = device->create_buffer(
+        sizeof(cube_uvs),
+        engine::graphics::BufferUsage::Vertex,
+        engine::graphics::BufferFrequency::Static,
+        cube_uvs
+    );
+
+    auto sampler = device->create_sampler();
+    auto cube_texture = device->create_texture(
+        engine::graphics::TextureDimension::D2,
+        engine::graphics::TextureFormat::RGBA32F,
+        512,    // width
+        512,    // height
+        1,      // depth
+        1       // mip levels
+    );
+
+    auto window_render_target = device->create_window_render_target();
+    auto cube_render_target = device->create_render_target(512, 512);
+    cube_render_target->bind_texture(0, *cube_texture);
+    cube_render_target->bind_depth_buffer();
+    cube_render_target->validate();
+
+    auto cube_invocation = cube_program->create_invocation();
+    {
+        cube_invocation->bind_render_target(*cube_render_target);
+        cube_invocation->bind_vertex_attribute(
+            0,      // location
+            *cube_vertex_buffer,
+            0,      // offset
+            12,     // stride
+            engine::graphics::VertexInputRate::Vertex,
+            engine::graphics::VertexFormat::Float32x3
+        );
+        cube_invocation->bind_vertex_attribute(
+            1,      // location
+            *cube_normal_buffer,
+            0,      // offset
+            12,     // stride
+            engine::graphics::VertexInputRate::Vertex,
+            engine::graphics::VertexFormat::Float32x3
+        );
+        cube_invocation->validate();
+    }
+    
+    auto invocation = program->create_invocation(); 
+    {
+        invocation->bind_render_target(*window_render_target);
+        invocation->bind_vertex_attribute(
+            0,      // location
+            *cube_vertex_buffer,
+            0,      // offset
+            12,     // stride
+            engine::graphics::VertexInputRate::Vertex,
+            engine::graphics::VertexFormat::Float32x3
+        );
+        invocation->bind_vertex_attribute(
+            1,      // location
+            *cube_normal_buffer,
+            0,      // offset
+            12,     // stride
+            engine::graphics::VertexInputRate::Vertex,
+            engine::graphics::VertexFormat::Float32x3
+        );
+        invocation->bind_vertex_attribute(
+            2,      // location
+            *cube_uv_buffer,
+            0,      // offset
+            8,      // stride
+            engine::graphics::VertexInputRate::Vertex,
+            engine::graphics::VertexFormat::Float32x2
+        );
+        invocation->bind_sampled_texture(
+            {0, 1},
+            *cube_texture,
+            *sampler
+        );
+
+        invocation->validate();
+    }
+
+    auto& window = device->get_window();
+    uint32_t window_width = window.get_width();
+    uint32_t window_height = window.get_height();
+
+    auto cube_projection_token = cube_invocation->get_uniform<glm::mat4>("camera.projection");
+    auto cube_view_token = cube_invocation->get_uniform<glm::mat4>("camera.view");
+
+    auto projection_token = invocation->get_uniform<glm::mat4>("camera.projection");
+    auto view_token = invocation->get_uniform<glm::mat4>("camera.view");
+
+    while(true) {
+        float time = std::chrono::duration<float>(std::chrono::steady_clock::now().time_since_epoch()).count();
+        float angle = time * 1.0f; // radians/sec
+        float radius = 2.0f;
+        float height = 1.0f;
+        glm::vec3 camera_position(
+            radius * std::cos(angle),
+            height,
+            radius * std::sin(angle)
+        );
+
+        glm::mat4 cube_projection = glm::perspective(
+            glm::radians(90.0f),
+            512 / static_cast<float>(512),
+            0.1f,
+            100.0f
+        );
+        glm::mat4 cube_view = glm::lookAt(
+            camera_position,
+            glm::vec3(0.0f),
+            glm::vec3(0.0f, 1.0f, 0.0f)
+        );
+
+        glm::mat4 projection = glm::perspective(
+            glm::radians(90.0f),
+            window_width / static_cast<float>(window_height),
+            0.1f,
+            100.0f
+        );
+        glm::mat4 view = glm::lookAt(
+            camera_position,
+            glm::vec3(0.0f),
+            glm::vec3(0.0f, 1.0f, 0.0f)
+        );
+
+        cube_invocation->set_uniform(cube_projection_token, cube_projection);
+        cube_invocation->set_uniform(cube_view_token, cube_view);
+        cube_invocation->draw(36);
+
+        invocation->set_uniform(projection_token, projection);
+        invocation->set_uniform(view_token, view);
+        invocation->draw(36);
+        device->present();
+
+        dynamic_cast<engine::graphics::opengl::GLGraphicsDevice&>(*device).gl_get_error();
+
+        std::this_thread::sleep_for(std::chrono::nanoseconds(1000000000 / 60));
+    }
+}
+
 void test_model() {
     
 }
@@ -657,7 +833,8 @@ int main(int argc, char** argv) {
     // test_uniform();
     // test_cube();
     // test_texture();
-    test_skybox();
+    // test_skybox();
+    test_render_target();
     // test_model();
 
     return 0;

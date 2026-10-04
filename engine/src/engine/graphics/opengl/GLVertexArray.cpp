@@ -49,23 +49,23 @@ void GLVertexArray::gl_bind_vertex_attribute(
     GLuint relative_offset
 ) {
     GLuint nr_components;
-    GLenum type;
+    GLenum input_type;
     switch(format) {
         case VertexFormat::Float32x1:
             nr_components = 1;
-            type = GL_FLOAT;
+            input_type = GL_FLOAT;
             break;
         case VertexFormat::Float32x2:
             nr_components = 2;
-            type = GL_FLOAT;
+            input_type = GL_FLOAT;
             break;
         case VertexFormat::Float32x3:
             nr_components = 3;
-            type = GL_FLOAT;
+            input_type = GL_FLOAT;
             break;
         case VertexFormat::Float32x4:
             nr_components = 4;
-            type = GL_FLOAT;
+            input_type = GL_FLOAT;
             break;
         default:
             assert(false);
@@ -76,7 +76,7 @@ void GLVertexArray::gl_bind_vertex_attribute(
         handle,
         attrib_slot,        // attribute location
         nr_components,      // number of components
-        type,               // type
+        input_type,         // input type
         GL_FALSE,           // normalized
         relative_offset     // byte offset into buffer of the first element
     );
