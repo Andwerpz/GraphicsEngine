@@ -6,7 +6,10 @@
 namespace engine::graphics::opengl {
 
 GLFramebuffer::GLFramebuffer(GLFramebuffer&& other) :
-device(other.device), handle(other.handle) {
+    device(other.device), 
+    context(other.context), 
+    handle(other.handle) 
+{
     other.handle = 0;
 }
 

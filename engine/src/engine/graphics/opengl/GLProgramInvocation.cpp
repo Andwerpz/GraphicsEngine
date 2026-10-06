@@ -50,6 +50,21 @@ void GLRenderingProgramInvocation::validate_impl() {
         // }
     }
 
+    // bind render target context
+    assert(render_target.has_value());
+    assert(render_target.value().get().is_validated());
+    if(dynamic_cast<GLTextureRenderTarget*>(&(render_target.value().get())) != nullptr) {
+        // render in headless context
+        GLTextureRenderTarget& gl_target = dynamic_cast<GLTextureRenderTarget&>(render_target.value().get());
+        gl_device.gl_reset_context();
+    }
+    else if(dynamic_cast<GLWindowRenderTarget*>(&(render_target.value().get())) != nullptr) {
+        // render in window context
+        GLWindowRenderTarget& gl_target = dynamic_cast<GLWindowRenderTarget&>(render_target.value().get());
+        gl_device.gl_set_context(gl_target.get_window().get_context());
+    }
+    else assert(false);
+
     // create vertex array 
     gl_vertex_array.emplace(gl_device.gl_create_vertex_array());
     for(const auto& [location, binding] : attribute_bindings) {
@@ -76,19 +91,6 @@ void GLRenderingProgramInvocation::validate_impl() {
             index_buffer.value().format
         );
     }
-
-    // get render target 
-    assert(render_target.has_value());
-    assert(render_target.value().get().is_validated());
-    if(dynamic_cast<GLTextureRenderTarget*>(&(render_target.value().get())) != nullptr) {
-        GLTextureRenderTarget& gl_target = dynamic_cast<GLTextureRenderTarget&>(render_target.value().get());
-        gl_framebuffer.emplace(gl_target.get_framebuffer());
-    }
-    else if(dynamic_cast<GLWindowRenderTarget*>(&(render_target.value().get())) != nullptr) {
-        GLWindowRenderTarget& gl_target = dynamic_cast<GLWindowRenderTarget&>(render_target.value().get());
-        gl_framebuffer.emplace(gl_target.get_framebuffer());
-    }
-    else assert(false);
 }
 
 void GLRenderingProgramInvocation::draw_impl(
@@ -97,6 +99,25 @@ void GLRenderingProgramInvocation::draw_impl(
 ) {
     // start execution context
     gl_device.gl_begin();
+
+    // bind render target
+    if(dynamic_cast<GLTextureRenderTarget*>(&(render_target.value().get())) != nullptr) {
+        // render in headless context
+        GLTextureRenderTarget& gl_target = dynamic_cast<GLTextureRenderTarget&>(render_target.value().get());
+        gl_device.gl_reset_context();
+        gl_device.gl_bind_framebuffer(gl_target.get_framebuffer());
+    }
+    else if(dynamic_cast<GLWindowRenderTarget*>(&(render_target.value().get())) != nullptr) {
+        // render in window context
+        GLWindowRenderTarget& gl_target = dynamic_cast<GLWindowRenderTarget&>(render_target.value().get());
+        gl_device.gl_set_context(gl_target.get_window().get_context());
+        gl_device.gl_bind_framebuffer(gl_target.get_framebuffer());
+    }
+    else assert(false);
+
+    // bind vertex array
+    assert(gl_vertex_array.has_value());
+    gl_device.gl_bind_vertex_array(gl_vertex_array.value());
 
     // bind resources
     for(auto i = bound_resources.begin(); i != bound_resources.end(); i++) {
@@ -134,15 +155,7 @@ void GLRenderingProgramInvocation::draw_impl(
         }
     }
 
-    // bind vertex array
-    assert(gl_vertex_array.has_value());
-    gl_device.gl_bind_vertex_array(gl_vertex_array.value());
-
-    // bind framebuffer
-    assert(gl_framebuffer.has_value());
-    gl_device.gl_bind_framebuffer(gl_framebuffer.value());
-
-    // execute program
+    // misc settings
     if(depth_testing) {
         glEnable(GL_DEPTH_TEST);
     }
@@ -152,13 +165,13 @@ void GLRenderingProgramInvocation::draw_impl(
             (clear_depth ? GL_DEPTH_BUFFER_BIT : 0);
         glClear(clear_flags);
     }
-
     gl_device.gl_set_viewport(
         0, 0, 
         render_target.value().get().get_width(),
         render_target.value().get().get_height()
     );
 
+    // execute program
     gl_device.gl_bind_rendering_program(gl_program);
     if(gl_vertex_array.value().has_index_buffer()) {
         if(nr_instances == 1) {

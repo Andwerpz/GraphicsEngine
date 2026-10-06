@@ -6,7 +6,7 @@
 
 #include <glad/glad.h>
 
-#include "engine/graphics/GraphicsDevice.h"
+#include "../GraphicsDevice.h"
 #include "GLBuffer.h"
 #include "GLTexture.h"
 #include "GLSampler.h"
@@ -38,9 +38,7 @@ class GLGraphicsDevice : public engine::graphics::GraphicsDevice {
     
 public:
     // -- INIT --
-    static std::unique_ptr<engine::graphics::GraphicsDevice> create(uint32_t width, uint32_t height, const char* title);
-    GLGraphicsDevice(GLWindow&& window);
-    ~GLGraphicsDevice() = default;
+    GLGraphicsDevice();
     
     // -- UTILS --
     static GLenum gl_internal_format(TextureFormat format);
@@ -53,15 +51,10 @@ public:
     // drains all errors and prints them out
     void gl_get_error();
 
-    // -- WINDOW --
-    GLWindow& gl_get_window() {
-        return window;
-    }
-
-    GLFramebuffer gl_get_window_framebuffer() {
-        // rendering to framebuffer 0 goes to the window
-        return GLFramebuffer(*this, 0);
-    }
+    // context management
+    void gl_reset_context();
+    void gl_set_context(GLContext& context);
+    GLContext& gl_get_context();
 
     // -- RESOURCES --
     // these are for creating, managing, and deleting resources
@@ -97,6 +90,9 @@ public:
         uint32_t height
     );
     GLFramebuffer gl_create_framebuffer();
+    GLFramebuffer gl_create_window_framebuffer(
+        GLWindow& window
+    );
     GLShader gl_create_shader(
         ShaderStage stage, 
         std::string source_code,
@@ -190,7 +186,9 @@ public:
         uint32_t width,
         uint32_t height
     ) override;
-    std::unique_ptr<engine::graphics::WindowRenderTarget> create_window_render_target() override;
+    std::unique_ptr<engine::graphics::WindowRenderTarget> create_window_render_target(
+        Window& window
+    ) override;
 
     std::unique_ptr<engine::graphics::Shader> create_shader(
         fs::path source_path
@@ -205,12 +203,23 @@ public:
         engine::graphics::Shader& compute
     ) override;
 
-    void present() override;
-    engine::graphics::Window& get_window() override;
+    std::unique_ptr<Window> create_window(
+        uint32_t width,
+        uint32_t height,
+        const char* title
+    ) override;
+    void present(Window& window) override;
 
 private:
-    // the window that this graphics device is connected to
-    GLWindow window;
+    // hidden window created to initialize OpenGL graphics device
+    // this should be used to create all other windows so they can share resources
+    // is populated during init
+    std::optional<GLContext> headless_context;
+
+    // represents the OpenGL context that is currently actively bound
+    // some resources (VertexArrays, Framebuffers, etc.) are context specific 
+    // is initialized to headless_context
+    GLContext* bound_context = nullptr;
 
     // whether or not we are inside an execution context
     bool executing = false;

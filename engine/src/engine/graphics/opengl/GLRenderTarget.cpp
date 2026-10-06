@@ -47,11 +47,12 @@ void GLTextureRenderTarget::validate_impl() {
 
 
 GLWindowRenderTarget::GLWindowRenderTarget(
-    GLGraphicsDevice& device
-) : engine::graphics::WindowRenderTarget(device.get_window()),
+    GLGraphicsDevice& device,
+    GLWindow& window
+) : engine::graphics::WindowRenderTarget(window),
     device(device),
-    gl_window(device.gl_get_window()),
-    gl_framebuffer(device.gl_get_window_framebuffer())
+    gl_window(window),
+    gl_framebuffer(device.gl_create_window_framebuffer(window))
 {
     // do nothing
 }

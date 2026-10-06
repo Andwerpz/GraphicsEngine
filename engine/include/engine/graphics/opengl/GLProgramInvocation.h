@@ -37,9 +37,6 @@ private:
     // when drawing, this vertex array gets bound to supply vertex information to the program
     std::optional<GLVertexArray> gl_vertex_array;
 
-    // framebuffer retrieved from the render target when this invocation gets validated
-    std::optional<std::reference_wrapper<GLFramebuffer>> gl_framebuffer;
-
     void validate_impl() override;
 
 	void draw_impl(

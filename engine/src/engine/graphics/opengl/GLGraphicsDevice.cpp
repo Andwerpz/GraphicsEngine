@@ -17,49 +17,50 @@ namespace fs = std::filesystem;
 
 namespace engine::graphics::opengl {
 
-std::unique_ptr<engine::graphics::GraphicsDevice> GLGraphicsDevice::create(uint32_t width, uint32_t height, const char* title) {
+GLGraphicsDevice::GLGraphicsDevice() {
     glfwSetErrorCallback([](int error, const char* description) {
         std::cerr << "GLFW error " << error << ": " << description << std::endl;
     });
 
+    // initialize glfw
     glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_X11);
     if(!glfwInit()) {
         engine::utils::throw_error("Failed to initialize GLFW");
     }
-    // std::cout << "GLFW platform : " << glfwGetPlatform() << std::endl;
     
+    // create opengl graphics device by creating hidden GLFW window
     glfwWindowHint(GLFW_CONTEXT_CREATION_API, GLFW_NATIVE_CONTEXT_API);
     glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
     GLFWwindow* glfw_window = glfwCreateWindow(
-        width,
-        height,
-        title,
+        1,
+        1,
+        "",
         nullptr,
         nullptr
     );
     if(glfw_window == nullptr) {
         glfwTerminate();
-        engine::utils::throw_error("Failed to create GLFW window");
+        engine::utils::throw_error("Failed to create headless GLFW window");
     }
-    glfwShowWindow(glfw_window);
 
-    glfwMakeContextCurrent(glfw_window);
+    // set active context to hidden window
+    headless_context.emplace(std::move(GLContext(
+        *this,
+        glfw_window
+    )));
+    gl_reset_context();
+
+    // load OpenGL function pointers for current thread
     if(gladLoadGL() == 0) {
         glfwDestroyWindow(glfw_window);
         glfwTerminate();
         engine::utils::throw_error("Failed to initialize GLAD");
     }
-
-    GLWindow window(glfw_window);
-    std::unique_ptr<GLGraphicsDevice> device = std::make_unique<GLGraphicsDevice>(std::move(window));
-
-    return device;
-}
-
-GLGraphicsDevice::GLGraphicsDevice(GLWindow&& _window) : window(std::move(_window)) {
+    
     // grab capabilities
     GLint gl_max_uniform_buffer_slots;
     GLint gl_max_storage_buffer_slots;
@@ -193,7 +194,7 @@ void GLGraphicsDevice::gl_get_error() {
                 message = "UNKNOWN_OPENGL_ERROR";
                 break;
         }
-        throw std::runtime_error(
+        engine::utils::throw_error(
             std::string("OpenGL error : ") +
             message + " (0x" +
             [&]() {
@@ -204,6 +205,23 @@ void GLGraphicsDevice::gl_get_error() {
             ")"
         );
     }
+}
+
+// -- CONTEXT MANAGEMENT --
+void GLGraphicsDevice::gl_reset_context() {
+    assert(headless_context.has_value());
+    gl_set_context(headless_context.value());
+}
+
+void GLGraphicsDevice::gl_set_context(GLContext& context) {
+    assert(context.get_glfw_window() != nullptr);
+    glfwMakeContextCurrent(context.get_glfw_window());
+    bound_context = &context;
+}
+
+GLContext& GLGraphicsDevice::gl_get_context() {
+    assert(bound_context != nullptr);
+    return *bound_context;
 }
 
 // -- RESOURCES --
@@ -415,7 +433,7 @@ GLVertexArray GLGraphicsDevice::gl_create_vertex_array() {
     GLuint handle;
     glCreateVertexArrays(1, &handle);
 
-    GLVertexArray va(*this, handle);
+    GLVertexArray va(*this, *bound_context, handle);
     return va;
 }
 
@@ -450,8 +468,15 @@ GLFramebuffer GLGraphicsDevice::gl_create_framebuffer() {
     GLuint handle;
     glCreateFramebuffers(1, &handle);
 
-    GLFramebuffer fb(*this, handle);
+    GLFramebuffer fb(*this, *bound_context, handle);
     return fb;
+}
+
+GLFramebuffer GLGraphicsDevice::gl_create_window_framebuffer(
+    GLWindow& window
+) {
+    // rendering to framebuffer 0 renders to the window in the bound context
+    return GLFramebuffer(*this, window.get_context(), 0);
 }
 
 GLShader GLGraphicsDevice::gl_create_shader(
@@ -625,15 +650,6 @@ void GLGraphicsDevice::gl_begin() {
     assert(!executing);
     executing = true;
 
-    // reset viewport and scissor
-    uint32_t window_width = gl_get_window().get_width();
-    uint32_t window_height = gl_get_window().get_height();
-    glViewport(
-        0, 0,
-        window_width, window_height
-    );
-    glDepthRange(0.0, 1.0);
-
     // make sure nothing is bound
     // TODO
 }
@@ -759,10 +775,10 @@ void GLGraphicsDevice::gl_bind_sampler(uint32_t slot, GLSampler& sampler) {
 
     // make sure slot is in range and unbound
     if(slot >= bound_samplers.size()) {
-
+        // TODO
     }
     if(bound_samplers[slot] != std::nullopt) {
-
+        // TODO
     }
     bound_samplers[slot] = &sampler;
 
@@ -775,6 +791,12 @@ void GLGraphicsDevice::gl_bind_vertex_array(GLVertexArray& va) {
     assert(&va.device == this);
     assert(!bound_vertex_array.has_value());
 
+    // make sure context of this vertex array matches currently bound context
+    assert(bound_context != nullptr);
+    if(!(va.get_context() == *bound_context)) {
+        engine::utils::throw_error("vertex array context does not match currently bound context");
+    }
+
     glBindVertexArray(va.get_handle());
     bound_vertex_array = &va;
 }
@@ -783,6 +805,12 @@ void GLGraphicsDevice::gl_bind_framebuffer(GLFramebuffer& fb) {
     assert(executing);
     assert(&fb.device == this);
     assert(!bound_framebuffer.has_value());
+
+    // make sure context of this framebuffer matches currently bound context
+    assert(bound_context != nullptr);
+    if(!(fb.get_context() == *bound_context)) {
+        engine::utils::throw_error("framebuffer context does not match currently bound context");
+    }
 
     glBindFramebuffer(GL_FRAMEBUFFER, fb.get_handle());
     bound_framebuffer = &fb;
@@ -1038,9 +1066,14 @@ std::unique_ptr<engine::graphics::TextureRenderTarget> GLGraphicsDevice::create_
     )));
 }
 
-std::unique_ptr<engine::graphics::WindowRenderTarget> GLGraphicsDevice::create_window_render_target() {
+std::unique_ptr<engine::graphics::WindowRenderTarget> GLGraphicsDevice::create_window_render_target(
+    Window& window
+) {
+    assert(dynamic_cast<GLWindow*>(&window) != nullptr);
+    GLWindow& gl_window = dynamic_cast<GLWindow&>(window);
     auto retval = std::make_unique<GLWindowRenderTarget>(std::move(GLWindowRenderTarget(
-        *this
+        *this,
+        gl_window
     )));
     retval->validate();
     return retval;
@@ -1172,12 +1205,40 @@ std::unique_ptr<engine::graphics::Shader> GLGraphicsDevice::create_shader(
     )));
 }
 
-void GLGraphicsDevice::present() {
-    window.swap_buffers();
+std::unique_ptr<engine::graphics::Window> GLGraphicsDevice::create_window(
+    uint32_t width,
+    uint32_t height,
+    const char* title
+) {
+    glfwWindowHint(GLFW_CONTEXT_CREATION_API, GLFW_NATIVE_CONTEXT_API);
+    glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    GLFWwindow* glfw_window = glfwCreateWindow(
+        width,
+        height,
+        title,
+        nullptr,
+        headless_context->get_glfw_window()
+    );
+    if(glfw_window == nullptr) {
+        glfwTerminate();
+        engine::utils::throw_error("Failed to create GLFW window");
+    }
+    glfwShowWindow(glfw_window);
+
+    GLContext gl_context(*this, glfw_window);
+    return std::make_unique<GLWindow>(std::move(GLWindow(
+        *this,
+        std::move(gl_context)
+    )));
 }
 
-engine::graphics::Window& GLGraphicsDevice::get_window() {
-    return window;
+void GLGraphicsDevice::present(Window& window) {
+    assert(dynamic_cast<GLWindow*>(&window) != nullptr);
+    GLWindow& gl_window = dynamic_cast<GLWindow&>(window);
+    gl_window.swap_buffers();
 }
 
 }

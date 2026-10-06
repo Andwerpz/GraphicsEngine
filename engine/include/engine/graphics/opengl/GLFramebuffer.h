@@ -6,6 +6,7 @@
 namespace engine::graphics::opengl {
 
 class GLGraphicsDevice;
+class GLContext;
 class GLTexture;
 class GLRenderbuffer;
 
@@ -18,6 +19,10 @@ public:
 
     GLuint get_handle() {
         return handle;
+    }
+
+    GLContext& get_context() {
+        return context;
     }
 
     // binds a texture as the color attachment 'GL_COLOR_ATTACHMENT0 + index'
@@ -44,8 +49,11 @@ public:
     bool gl_is_complete();
   
 private:
-    GLFramebuffer(GLGraphicsDevice& device, GLuint handle) :
-        device(device), handle(handle) {}
+    GLFramebuffer(
+        GLGraphicsDevice& device, 
+        GLContext& context, 
+        GLuint handle
+    ) : device(device), context(context), handle(handle) {}
 
     GLFramebuffer() = delete;
     GLFramebuffer(const GLFramebuffer&) = delete;
@@ -54,6 +62,9 @@ private:
 
     // the device that created this framebuffer
     GLGraphicsDevice& device;
+
+    // the opengl context this framebuffer belongs to
+    GLContext& context;
 
     // OpenGL resource handle
     GLuint handle;

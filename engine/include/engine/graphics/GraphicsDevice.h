@@ -13,6 +13,10 @@ namespace fs = std::filesystem;
 #include "ProgramInvocation.h"
 #include "Window.h"
 
+// TODO allow a graphics device to handle multiple windows 
+//   in GLFW, a graphics device handling multiple windows will have one context per window 
+//   to select which window you want to render to, you just do glfwMakeContextCurrent(glfw_window);
+
 namespace engine::graphics {
 
 class RenderingProgram;
@@ -34,6 +38,14 @@ protected:
     using IndexFormat = engine::graphics::IndexFormat;
 
 public:
+    GraphicsDevice() = default;
+
+    // make GraphicsDevice non-moveable to let it have a stable address once allocated
+    GraphicsDevice(const GraphicsDevice&) = delete;
+    GraphicsDevice(GraphicsDevice&&) = delete;
+    GraphicsDevice& operator=(const GraphicsDevice&) = delete;
+    GraphicsDevice& operator=(GraphicsDevice&&) = delete;
+
     // -- EXTERNAL API --
     // GPU resources
     virtual std::unique_ptr<Buffer> create_buffer(
@@ -66,7 +78,10 @@ public:
     ) = 0;
 
     // should return a pre-validated window render target
-    virtual std::unique_ptr<WindowRenderTarget> create_window_render_target() = 0;
+    // the provided window should be originally created by this graphics device
+    virtual std::unique_ptr<WindowRenderTarget> create_window_render_target(
+        Window& window
+    ) = 0;
 
     // should compile the given shader for the underlying graphics device 
     virtual std::unique_ptr<Shader> create_shader(
@@ -83,11 +98,15 @@ public:
         Shader& compute
     ) = 0;
 
-    // make whatever was rendered since the last present() visible
-    virtual void present() = 0;
+    // creates a new window managed by this graphics device
+    virtual std::unique_ptr<Window> create_window(
+        uint32_t width = 800,
+        uint32_t height = 600,
+        const char* title = "my window"
+    ) = 0;
 
-    // window
-    virtual Window& get_window() = 0;
+    // make whatever was rendered since the last present() visible
+    virtual void present(Window& window) = 0;
 };
 
 }

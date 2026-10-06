@@ -108,6 +108,10 @@ void ProgramInvocation::validate() {
                 }
 
                 // validate resource
+                ResourceBinding& resource = get_resource(location);
+                if(resource.type != ShaderResourceType::UniformBuffer) {
+                    engine::utils::throw_error("resource bound to uniform buffer is not a uniform buffer");
+                }
                 Buffer& buffer = get_uniform_buffer(location);
                 assert(buffer.get_usage() == BufferUsage::Uniform);
 
@@ -122,11 +126,16 @@ void ProgramInvocation::validate() {
                 // make sure sampled texture is bound
                 ResourceBinding& resource = get_resource(location);
                 if(resource.type != ShaderResourceType::SampledTexture) {
-                    engine::utils::throw_error("non-sampled texture bound to sampled texture");
+                    engine::utils::throw_error("resource bound to sampled texture is not a sampled texture");
                 }
 
-                // check type of sampled texture
-                // TODO
+                // make sure dimension matches
+                ShaderImageType& image_type = resource_interface.sampled_texture.image_type;
+                assert(resource.sampled_texture.texture != nullptr);
+                Texture& tex = *resource.sampled_texture.texture;
+                if(tex.get_dimension() != image_type.dimension) {
+                    engine::utils::throw_error("texture bound to sampled texture has dimension mismatch");
+                }
                 break;
             }
             default:

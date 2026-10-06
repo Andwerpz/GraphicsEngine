@@ -3,8 +3,8 @@
 #include <map>
 #include <functional>
 
-#include "Window.h"
 #include "Texture.h"
+#include "Window.h"
 
 namespace engine::graphics {
 

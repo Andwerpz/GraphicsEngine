@@ -4,17 +4,9 @@
 
 namespace engine::graphics::opengl {
 
-GLVertexArray::GLVertexArray(
-    GLGraphicsDevice& device,
-    GLuint handle
-) : device(device),
-    handle(handle)
-{
-    // do nothing
-}
-
 GLVertexArray::GLVertexArray(GLVertexArray&& other) :
     device(other.device),
+    context(other.context),
     handle(other.handle) 
 {
     other.handle = 0;

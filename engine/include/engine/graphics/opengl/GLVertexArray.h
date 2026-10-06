@@ -8,18 +8,13 @@
 namespace engine::graphics::opengl {
 
 class GLGraphicsDevice;
+class GLContext;
 class GLBuffer;
 
 class GLVertexArray {
     friend class GLGraphicsDevice;
     using IndexFormat = engine::graphics::IndexFormat;
     using VertexFormat = engine::graphics::VertexFormat;
-
-private:
-    GLVertexArray(
-        GLGraphicsDevice& device,
-        GLuint handle
-    );
 
 public:
     GLVertexArray(GLVertexArray&& other);
@@ -32,6 +27,10 @@ public:
 
     GLuint get_handle() {
         return handle;
+    }
+
+    GLContext& get_context() {
+        return context;
     }
 
     bool has_index_buffer() {
@@ -71,8 +70,17 @@ public:
     );
 
 private:
-    // the device that created this texture
+    GLVertexArray(
+        GLGraphicsDevice& device,
+        GLContext& context,
+        GLuint handle
+    ) : device(device), context(context), handle(handle) {}
+
+    // the device that created this vertex array
     GLGraphicsDevice& device;
+
+    // the opengl context this vertex array belongs to
+    GLContext& context;
 
     // OpenGL resource handle
     GLuint handle;

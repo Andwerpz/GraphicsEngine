@@ -61,13 +61,18 @@ public:
     GLWindowRenderTarget(GLWindowRenderTarget&&) = default;
     ~GLWindowRenderTarget() = default;
 
+    GLWindow& get_window() {
+        return gl_window;
+    }
+
     GLFramebuffer& get_framebuffer() {
         return gl_framebuffer;
     }
 
 private:
     GLWindowRenderTarget(
-        GLGraphicsDevice& device
+        GLGraphicsDevice& device,
+        GLWindow& window
     );
 
     GLWindowRenderTarget() = delete;
@@ -80,7 +85,8 @@ private:
     // underlying window
     GLWindow& gl_window;
 
-    // internally managed framebuffer with handle = 0
+    // internally managed framebuffer 
+    // should have handle = 0 and context = gl_window.context
     GLFramebuffer gl_framebuffer;
 
     bool has_depth_buffer() override;
