@@ -47,6 +47,8 @@ public:
     static GLenum gl_shader_type(ShaderStage stage);
     static GLenum gl_draw_mode(PrimitiveTopology primitive_topology);
     static GLenum gl_index_type(IndexFormat format);
+    static uint64_t gl_index_type_size(IndexFormat format);
+    static uint64_t gl_vertices_per_primitive(PrimitiveTopology primitive_topology);
 
     // drains all errors and prints them out
     void gl_get_error();
@@ -95,7 +97,7 @@ public:
     );
     GLShader gl_create_shader(
         ShaderStage stage, 
-        std::string source_code,
+        std::string source,
         std::vector<uint32_t> spirv_code
     );
     GLRenderingProgram gl_create_rendering_program(
@@ -151,10 +153,26 @@ public:
     );
 
     // execution
-    void gl_draw_arrays(uint32_t vertex_count);
-    void gl_draw_elements(uint32_t vertex_count);
-    void gl_draw_arrays_instanced(uint32_t vertex_count, uint32_t instance_count);
-    void gl_draw_elements_instanced(uint32_t vertex_count, uint32_t instance_count);
+    void gl_draw_arrays(
+        uint32_t primitive_count,
+        uint32_t first_primitive = 0
+    );
+    void gl_draw_elements(
+        uint32_t primitive_count,
+        uint32_t first_primitive = 0
+    );
+    void gl_draw_arrays_instanced(
+        uint32_t primitive_count, 
+        uint32_t instance_count,
+        uint32_t first_primitive = 0,
+        uint32_t first_instance = 0
+    );
+    void gl_draw_elements_instanced(
+        uint32_t primitive_count, 
+        uint32_t instance_count,
+        uint32_t first_primitive = 0,
+        uint32_t first_instance = 0
+    );
     void gl_dispatch(uint32_t x, uint32_t y = 1, uint32_t z = 1);
     // void gl_barrier(...);
 
@@ -191,7 +209,9 @@ public:
     ) override;
 
     std::unique_ptr<engine::graphics::Shader> create_shader(
-        fs::path source_path
+        const std::string_view& source,
+        ShaderStage stage,
+        const fs::path& source_path
     ) override;
 
     std::unique_ptr<engine::graphics::RenderingProgram> create_rendering_program(
@@ -208,7 +228,9 @@ public:
         uint32_t height,
         const char* title
     ) override;
+
     void present(Window& window) override;
+    uint32_t get_vertex_format_location_count(VertexFormat format) override;
 
 private:
     // hidden window created to initialize OpenGL graphics device

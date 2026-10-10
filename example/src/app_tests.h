@@ -129,7 +129,7 @@ inline void test_application() {
             );
             invocation->set_uniform(projection_token, projection);
             invocation->set_uniform(view_token, view);
-            invocation->draw(36);
+            invocation->draw(12);
 
             device.present(*window);
 

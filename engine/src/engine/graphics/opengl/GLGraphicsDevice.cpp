@@ -11,10 +11,6 @@
 #include <GLFW/glfw3.h>
 #include <shaderc/shaderc.h>
 
-#include <fstream>
-#include <filesystem>
-namespace fs = std::filesystem;
-
 namespace engine::graphics::opengl {
 
 GLGraphicsDevice::GLGraphicsDevice() {
@@ -60,6 +56,9 @@ GLGraphicsDevice::GLGraphicsDevice() {
         glfwTerminate();
         engine::utils::throw_error("Failed to initialize GLAD");
     }
+
+    std::cout << "OpenGL Renderer : " << glGetString(GL_RENDERER) << std::endl;
+    std::cout << "OpenGL Version : " << glGetString(GL_VERSION) << std::endl;
     
     // grab capabilities
     GLint gl_max_uniform_buffer_slots;
@@ -164,6 +163,32 @@ GLenum GLGraphicsDevice::gl_index_type(IndexFormat format) {
     }
 }
 
+uint64_t GLGraphicsDevice::gl_index_type_size(IndexFormat format) {
+    switch(format) {
+        case IndexFormat::UInt16:
+            return 2;
+        case IndexFormat::UInt32:
+            return 3;
+        default:
+            assert(false);
+            return 0;
+    }
+}
+
+uint64_t GLGraphicsDevice::gl_vertices_per_primitive(PrimitiveTopology primitive_topology) {
+    switch(primitive_topology) {
+        case PrimitiveTopology::PointList:
+            return 1;
+        case PrimitiveTopology::LineList:
+            return 2;
+        case PrimitiveTopology::TriangleList:
+            return 3;
+        default:
+            assert(false);
+            return 0;
+    }
+}
+
 void GLGraphicsDevice::gl_get_error() {
     GLenum error;
     while((error = glGetError()) != GL_NO_ERROR) {
@@ -215,6 +240,8 @@ void GLGraphicsDevice::gl_reset_context() {
 
 void GLGraphicsDevice::gl_set_context(GLContext& context) {
     assert(context.get_glfw_window() != nullptr);
+    if(bound_context == &context) return;
+    std::cout << "SET CONTEXT : " << (uint64_t) &context << std::endl;
     glfwMakeContextCurrent(context.get_glfw_window());
     bound_context = &context;
 }
@@ -238,10 +265,10 @@ GLBuffer GLGraphicsDevice::gl_create_buffer(
     // create buffer
     GLuint handle;
     glCreateBuffers(1, &handle);
-
+    
     // allocate storage
     GLbitfield flags = 0;
-    switch (frequency) {
+    switch(frequency) {
         case BufferFrequency::Static:
             break;
         case BufferFrequency::Dynamic:
@@ -252,7 +279,7 @@ GLBuffer GLGraphicsDevice::gl_create_buffer(
     }
     assert(size > 0);
     glNamedBufferStorage(handle, size, data, flags);
-    
+
     GLBuffer buf(size, usage, frequency, *this, handle);
     return buf;
 }
@@ -703,7 +730,7 @@ void GLGraphicsDevice::gl_end() {
 
     // unbind program
     if(program_bound) {
-        glBindProgramPipeline(0);
+        glUseProgram(0);
         program_bound = false;
         bound_rendering_program = std::nullopt;
         bound_compute_program = std::nullopt;
@@ -877,7 +904,8 @@ void GLGraphicsDevice::gl_set_scissor(
 }
 
 void GLGraphicsDevice::gl_draw_arrays(
-    uint32_t vertex_count
+    uint32_t primitive_count,
+    uint32_t first_primitive
 ) {
     assert(executing);
     assert(bound_vertex_array.has_value());
@@ -887,45 +915,20 @@ void GLGraphicsDevice::gl_draw_arrays(
     assert(bound_framebuffer.value() != nullptr);
     assert(bound_rendering_program.value() != nullptr);
 
-    GLenum gl_draw_mode = GLGraphicsDevice::gl_draw_mode(bound_rendering_program.value()->get_primitive_topology());
+    PrimitiveTopology topology = bound_rendering_program.value()->get_primitive_topology();
+    GLenum gl_draw_mode = GLGraphicsDevice::gl_draw_mode(topology);
+    uint64_t vertices_per_primitive = GLGraphicsDevice::gl_vertices_per_primitive(topology);
 
-    if(false) {
-        GLint vao = 0;
-        glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &vao);
-        std::cout << "VAO handle : " << vao << std::endl;
-
-        for (GLuint i = 0; i < 2; ++i) {
-            GLint enabled;
-            GLint size;
-            GLint type;
-            GLint stride;
-            GLint buffer;
-
-            glGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_ENABLED, &enabled);
-            glGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_SIZE, &size);
-            glGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_TYPE, &type);
-            glGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_STRIDE, &stride);
-            glGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_BUFFER_BINDING, &buffer);
-
-            std::cout
-                << "attribute " << i << ":\n"
-                << "  enabled: " << enabled << '\n'
-                << "  size: " << size << '\n'
-                << "  type: 0x" << std::hex << type << std::dec << '\n'
-                << "  stride: " << stride << '\n'
-                << "  buffer: " << buffer << '\n';
-        }
-    }
-    
     glDrawArrays(
         gl_draw_mode,
-        0,
-        vertex_count
+        first_primitive * vertices_per_primitive,
+        primitive_count * vertices_per_primitive
     );
 }
 
 void GLGraphicsDevice::gl_draw_elements(
-    uint32_t vertex_count
+    uint32_t primitive_count,
+    uint32_t first_primitive
 ) {
     assert(executing);
     assert(bound_vertex_array.has_value());
@@ -937,20 +940,30 @@ void GLGraphicsDevice::gl_draw_elements(
     if(!bound_vertex_array.value()->has_index_buffer()) {
         engine::utils::throw_error("gl_draw_elements expects the bound vertex array to have a bound index buffer");
     }
+
+    PrimitiveTopology topology = bound_rendering_program.value()->get_primitive_topology();
+    GLenum gl_draw_mode = GLGraphicsDevice::gl_draw_mode(topology);
+    uint64_t vertices_per_primitive = gl_vertices_per_primitive(topology);
     
-    GLenum gl_draw_mode = GLGraphicsDevice::gl_draw_mode(bound_rendering_program.value()->get_primitive_topology());
-    GLenum gl_index_type = GLGraphicsDevice::gl_index_type(bound_vertex_array.value()->get_index_format());
+    IndexFormat index_format = bound_vertex_array.value()->get_index_format();
+    GLenum gl_index_type = GLGraphicsDevice::gl_index_type(index_format);
+    uint64_t index_type_size = GLGraphicsDevice::gl_index_type_size(index_format);
+
     glDrawElements(
         gl_draw_mode,
-        vertex_count,
+        primitive_count * vertices_per_primitive,
         gl_index_type,
-        0
+        reinterpret_cast<const void*>(
+            first_primitive * vertices_per_primitive * index_type_size
+        )
     );
 }
 
 void GLGraphicsDevice::gl_draw_arrays_instanced(
-    uint32_t vertex_count,
-    uint32_t instance_count
+    uint32_t primitive_count,
+    uint32_t instance_count,
+    uint32_t first_primitive,
+    uint32_t first_instance
 ) {
     assert(executing);
     assert(bound_vertex_array.has_value());
@@ -960,18 +973,24 @@ void GLGraphicsDevice::gl_draw_arrays_instanced(
     assert(bound_framebuffer.value() != nullptr);
     assert(bound_rendering_program.value() != nullptr);
 
-    GLenum gl_draw_mode = GLGraphicsDevice::gl_draw_mode(bound_rendering_program.value()->get_primitive_topology());
-    glDrawArraysInstanced(
+    PrimitiveTopology topology = bound_rendering_program.value()->get_primitive_topology();
+    GLenum gl_draw_mode = GLGraphicsDevice::gl_draw_mode(topology);
+    uint64_t vertices_per_primitive = GLGraphicsDevice::gl_vertices_per_primitive(topology);
+
+    glDrawArraysInstancedBaseInstance(
         gl_draw_mode,
-        0,
-        vertex_count,
-        instance_count
+        first_primitive * vertices_per_primitive,
+        primitive_count * vertices_per_primitive,
+        instance_count,
+        first_instance
     );
 }
 
 void GLGraphicsDevice::gl_draw_elements_instanced(
-    uint32_t vertex_count,
-    uint32_t instance_count
+    uint32_t primitive_count,
+    uint32_t instance_count,
+    uint32_t first_primitive,
+    uint32_t first_instance
 ) {
     assert(executing);
     assert(bound_vertex_array.has_value());
@@ -984,14 +1003,23 @@ void GLGraphicsDevice::gl_draw_elements_instanced(
         engine::utils::throw_error("gl_draw_elements_instanced expects the bound vertex array to have a bound index buffer");
     }
     
-    GLenum gl_draw_mode = GLGraphicsDevice::gl_draw_mode(bound_rendering_program.value()->get_primitive_topology());
-    GLenum gl_index_type = GLGraphicsDevice::gl_index_type(bound_vertex_array.value()->get_index_format());
-    glDrawElementsInstanced(
+    PrimitiveTopology topology = bound_rendering_program.value()->get_primitive_topology();
+    GLenum gl_draw_mode = GLGraphicsDevice::gl_draw_mode(topology);
+    uint64_t vertices_per_primitive = gl_vertices_per_primitive(topology);
+    
+    IndexFormat index_format = bound_vertex_array.value()->get_index_format();
+    GLenum gl_index_type = GLGraphicsDevice::gl_index_type(index_format);
+    uint64_t index_type_size = GLGraphicsDevice::gl_index_type_size(index_format);
+
+    glDrawElementsInstancedBaseInstance(
         gl_draw_mode,
-        vertex_count,
+        primitive_count * vertices_per_primitive,
         gl_index_type,
-        0,
-        instance_count
+        reinterpret_cast<const void*>(
+            first_primitive * vertices_per_primitive * index_type_size
+        ),
+        instance_count,
+        first_instance
     );
 }
 
@@ -1118,37 +1146,24 @@ std::unique_ptr<engine::graphics::ComputeProgram> GLGraphicsDevice::create_compu
 }
 
 std::unique_ptr<engine::graphics::Shader> GLGraphicsDevice::create_shader(
-    fs::path source_path
+    const std::string_view& source_code,
+    ShaderStage stage,
+    const fs::path& source_path
 ) {
-    // load source code
-    std::string source_code;
-    {
-        std::ifstream file(source_path, std::ios::in | std::ios::binary);
-        if(!file) {
-            engine::utils::throw_error("Cannot open file : " + source_path.string());
-        }
-        std::ostringstream ss;
-        ss << file.rdbuf();
-        source_code = ss.str();
-    }
-    
-    // determine what sort of shader this is via extension
-    ShaderStage shader_stage;
+    // determine shaderc kind
     shaderc_shader_kind sc_kind;
-    if(source_path.extension() == ".vert") {
-        shader_stage = ShaderStage::Vertex;
-        sc_kind = shaderc_glsl_vertex_shader;
-    } 
-    else if(source_path.extension() == ".frag") {
-        shader_stage = ShaderStage::Fragment;
-        sc_kind = shaderc_glsl_fragment_shader;
-    } 
-    else if(source_path.extension() == ".compute") {
-        shader_stage = ShaderStage::Compute;
-        sc_kind = shaderc_glsl_compute_shader;
-    } 
-    else {
-        engine::utils::throw_error("Unknown shader extension: " + source_path.extension().string());
+    switch(stage) {
+        case ShaderStage::Vertex:
+            sc_kind = shaderc_glsl_vertex_shader;
+            break;
+        case ShaderStage::Fragment:
+            sc_kind = shaderc_glsl_fragment_shader;
+            break;
+        case ShaderStage::Compute:
+            sc_kind = shaderc_glsl_compute_shader;
+            break;
+        default:
+            assert(false);
     }
 
     // create a compiler
@@ -1199,8 +1214,8 @@ std::unique_ptr<engine::graphics::Shader> GLGraphicsDevice::create_shader(
 
     // create shader
     return std::make_unique<GLShader>(std::move(gl_create_shader(
-        shader_stage,
-        source_code,
+        stage,
+        std::string(source_code),
         spirv_code
     )));
 }
@@ -1239,6 +1254,23 @@ void GLGraphicsDevice::present(Window& window) {
     assert(dynamic_cast<GLWindow*>(&window) != nullptr);
     GLWindow& gl_window = dynamic_cast<GLWindow&>(window);
     gl_window.swap_buffers();
+}
+
+uint32_t GLGraphicsDevice::get_vertex_format_location_count(VertexFormat format) {
+    switch(format) {
+        case VertexFormat::Float32x1:
+            return 1;
+        case VertexFormat::Float32x2:
+            return 1;
+        case VertexFormat::Float32x3:
+            return 1;
+        case VertexFormat::Float32x4:
+            return 1;
+        case VertexFormat::Float32x4x4:
+            return 4;
+        default:
+            assert(false);
+    }
 }
 
 }

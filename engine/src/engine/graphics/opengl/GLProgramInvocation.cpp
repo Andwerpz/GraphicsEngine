@@ -70,18 +70,40 @@ void GLRenderingProgramInvocation::validate_impl() {
     for(const auto& [location, binding] : attribute_bindings) {
         assert(dynamic_cast<GLBuffer*>(&binding.buffer) != nullptr);
         GLBuffer& gl_buffer = dynamic_cast<GLBuffer&>(binding.buffer);
+        VertexFormat format = binding.format;
         gl_vertex_array.value().gl_bind_vertex_buffer(
             location,
             gl_buffer,
             binding.offset,
-            binding.stride
+            binding.stride,
+            binding.rate
         );
-        gl_vertex_array.value().gl_bind_vertex_attribute(
-            location,
-            location,
-            binding.format,
-            0
-        );
+
+        switch(format) {
+            case VertexFormat::Float32x1:
+            case VertexFormat::Float32x2:
+            case VertexFormat::Float32x3:
+            case VertexFormat::Float32x4:
+                gl_vertex_array.value().gl_bind_vertex_attribute(
+                    location,
+                    location,
+                    binding.format,
+                    0
+                );
+                break;
+            case VertexFormat::Float32x4x4:
+                for(int i = 0; i < 4; i++) {
+                    gl_vertex_array.value().gl_bind_vertex_attribute(
+                        location + i,
+                        location,
+                        VertexFormat::Float32x4,
+                        16 * i
+                    );
+                }
+                break;
+            default:
+                assert(false);
+        }
     }
     if(index_buffer.has_value()) {
         assert(dynamic_cast<GLBuffer*>(&index_buffer.value().buffer) != nullptr);
@@ -94,8 +116,10 @@ void GLRenderingProgramInvocation::validate_impl() {
 }
 
 void GLRenderingProgramInvocation::draw_impl(
-    uint32_t nr_vertices, 
-    uint32_t nr_instances
+    uint32_t nr_primitives, 
+    uint32_t nr_instances,
+    uint32_t first_primitive,
+    uint32_t first_instance
 ) {
     // start execution context
     gl_device.gl_begin();
@@ -112,8 +136,16 @@ void GLRenderingProgramInvocation::draw_impl(
         GLWindowRenderTarget& gl_target = dynamic_cast<GLWindowRenderTarget&>(render_target.value().get());
         gl_device.gl_set_context(gl_target.get_window().get_context());
         gl_device.gl_bind_framebuffer(gl_target.get_framebuffer());
+        std::cout << "BIND WINDOW FRAMEBUFFER" << std::endl;
     }
     else assert(false);
+
+    GLint draw_fbo = -1;
+    glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &draw_fbo);
+    std::cout << "DRAW FBO : " << draw_fbo << '\n';
+
+    GLenum status = glCheckFramebufferStatus(GL_DRAW_FRAMEBUFFER);
+    std::cout << "FBO STATUS: 0x" << std::hex << status << std::dec << '\n';
 
     // bind vertex array
     assert(gl_vertex_array.has_value());
@@ -156,46 +188,59 @@ void GLRenderingProgramInvocation::draw_impl(
     }
 
     // misc settings
-    if(depth_testing) {
-        glEnable(GL_DEPTH_TEST);
-    }
-    if(clear_color || clear_depth) {
-        GLenum clear_flags = 
-            (clear_color ? GL_COLOR_BUFFER_BIT : 0) |
-            (clear_depth ? GL_DEPTH_BUFFER_BIT : 0);
-        glClear(clear_flags);
-    }
+    glDisable(GL_BLEND);
     gl_device.gl_set_viewport(
         0, 0, 
         render_target.value().get().get_width(),
         render_target.value().get().get_height()
     );
+    if(depth_testing) {
+        glEnable(GL_DEPTH_TEST);
+    }
+    else {
+        glDisable(GL_DEPTH_TEST);
+    }
+    if(clear_color || clear_depth) {
+        std::cout << "CLEAR COLOR : " << clear_color << " DEPTH : " << clear_depth << std::endl;
+        GLenum clear_flags = 
+            (clear_color ? GL_COLOR_BUFFER_BIT : 0) |
+            (clear_depth ? GL_DEPTH_BUFFER_BIT : 0);
+        glClear(clear_flags);
+    }
 
     // execute program
     gl_device.gl_bind_rendering_program(gl_program);
     if(gl_vertex_array.value().has_index_buffer()) {
-        if(nr_instances == 1) {
+        if(nr_instances == 1 && first_instance == 0) {
             gl_device.gl_draw_elements(
-                nr_vertices
+                nr_primitives,
+                first_primitive
             );
         }
         else {
             gl_device.gl_draw_elements_instanced(
-                nr_vertices,
-                nr_instances
+                nr_primitives,
+                nr_instances,
+                first_primitive,
+                first_instance
             );
         }
     }
     else {
-        if(nr_instances == 1) {
+        if(nr_instances == 1 && first_instance == 0) {
+            std::cout << "DRAW ARRAYS" << std::endl;
             gl_device.gl_draw_arrays(
-                nr_vertices
+                nr_primitives,
+                first_primitive
             );
         }
         else {
+            std::cout << "DRAW ARRAYS INSTANCED" << std::endl;
             gl_device.gl_draw_arrays_instanced(
-                nr_vertices,
-                nr_instances
+                nr_primitives,
+                nr_instances,
+                first_primitive,
+                first_instance
             );
         }
     }

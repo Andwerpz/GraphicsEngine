@@ -1,6 +1,7 @@
 #include <engine/graphics/opengl/GLVertexArray.h>
 #include <engine/graphics/opengl/GLGraphicsDevice.h>
 #include <glad/glad.h>
+#include <iostream>
 
 namespace engine::graphics::opengl {
 
@@ -22,8 +23,21 @@ void GLVertexArray::gl_bind_vertex_buffer(
     GLuint slot,
     GLBuffer& buffer,
     GLintptr offset,
-    GLsizei stride
+    GLsizei stride,
+    VertexInputRate rate
 ) { 
+    GLuint divisor;
+    switch(rate) {
+        case VertexInputRate::Vertex:
+            divisor = 0;
+            break;
+        case VertexInputRate::Instance:
+            divisor = 1;
+            break;
+        default:
+            assert(false);
+    }
+
     // bind buffer to vertex array
     glVertexArrayVertexBuffer(
         handle,
@@ -31,6 +45,13 @@ void GLVertexArray::gl_bind_vertex_buffer(
         buffer.get_handle(),
         offset,
         stride
+    );
+
+    // configure vertex input rate
+    glVertexArrayBindingDivisor(
+        handle,
+        slot,
+        divisor
     );
 }
 

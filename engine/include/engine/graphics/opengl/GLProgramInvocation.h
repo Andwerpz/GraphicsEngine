@@ -40,8 +40,10 @@ private:
     void validate_impl() override;
 
 	void draw_impl(
-        uint32_t nr_elements, 
-        uint32_t nr_instances
+        uint32_t nr_primitives, 
+        uint32_t nr_instances,
+        uint32_t first_primitive,
+        uint32_t first_instance
     ) override;
 };
 

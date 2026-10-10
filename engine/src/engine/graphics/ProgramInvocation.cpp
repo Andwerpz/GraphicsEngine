@@ -400,8 +400,11 @@ void RenderingProgramInvocation::bind_vertex_attribute(
     assert(!validated);
 
     // make sure that this location hasn't been bound to yet
-    if(attribute_bindings.contains(location)) {
-        engine::utils::throw_error("bind_vertex_attribute location already bound : " + std::to_string(location));
+    uint32_t location_count = device.get_vertex_format_location_count(format);
+    for(uint32_t i = 0; i < location_count; i++) {
+        if(occupied_locations.contains(location + i)) {
+            engine::utils::throw_error("location already bound : " + std::to_string(location + i));
+        }
     }
 
     // make sure the buffer is a vertex buffer
@@ -417,6 +420,9 @@ void RenderingProgramInvocation::bind_vertex_attribute(
         rate,
         format
     }});
+    for(uint32_t i = 0; i < location_count; i++) {
+        occupied_locations.insert(location + i);
+    }
 }
 
 void RenderingProgramInvocation::bind_index_buffer(
@@ -472,16 +478,20 @@ void RenderingProgramInvocation::bind_render_target(
 }
 
 void RenderingProgramInvocation::draw(
-    uint32_t nr_elements, 
-    uint32_t nr_instances
+    uint32_t nr_primitives, 
+    uint32_t nr_instances,
+    uint32_t first_primitive,
+    uint32_t first_instance
 ) {
     // make sure we have validated
     assert(validated);
 
     // call subclass impl
     draw_impl(
-        nr_elements,
-        nr_instances
+        nr_primitives,
+        nr_instances,
+        first_primitive,
+        first_instance
     );
 }
 

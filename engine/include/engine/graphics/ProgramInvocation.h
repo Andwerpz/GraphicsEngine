@@ -3,6 +3,7 @@
 #include <vector>
 #include <optional>
 #include <map>
+#include <set>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -141,11 +142,13 @@ enum class VertexInputRate {
 };
 
 // how each vertex attribute element should be interpreted
+// depending on how each attribute is formatted, they may take up multiple locations
 enum class VertexFormat {
     Float32x1,
     Float32x2,
     Float32x3,
     Float32x4,
+    Float32x4x4,
 };
 
 // how each index element should be interpreted
@@ -162,7 +165,7 @@ protected:
         Program& program
     );
 
-	// mapping a vertex buffer to an input interface variable
+	// mapping a shader input location to a vertex buffer
 	struct VertexAttributeBinding {
 		Buffer& buffer;         // what buffer to use 
 		uint32_t offset;        // byte of the first element
@@ -171,6 +174,10 @@ protected:
 		VertexFormat format;    // how to interpret elements
 	};
     std::map<uint32_t, VertexAttributeBinding> attribute_bindings;
+
+    // some attribute bindings may take up multiple locations
+    // if a locations is in this set, it's been occupied by some binding
+    std::set<uint32_t> occupied_locations;
 
 	// optionally bind an index buffer for indexed rendering
 	struct IndexBufferBinding {
@@ -194,8 +201,10 @@ protected:
     bool clear_depth = true;
 
 	virtual void draw_impl(
-        uint32_t nr_elements, 
-        uint32_t nr_instances
+        uint32_t nr_primitives, 
+        uint32_t nr_instances,
+        uint32_t first_primitive,
+        uint32_t first_instance
     ) = 0;
 
 public:
@@ -216,8 +225,10 @@ public:
     );
 
 	void draw(
-        uint32_t nr_elements, 
-        uint32_t nr_instances = 1
+        uint32_t nr_primitives, 
+        uint32_t nr_instances = 1,
+        uint32_t first_primitive = 0,
+        uint32_t first_instance = 0
     );
 
     // modifies the behaviour when executing the program

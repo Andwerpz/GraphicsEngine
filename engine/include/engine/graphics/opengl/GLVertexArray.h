@@ -15,6 +15,7 @@ class GLVertexArray {
     friend class GLGraphicsDevice;
     using IndexFormat = engine::graphics::IndexFormat;
     using VertexFormat = engine::graphics::VertexFormat;
+    using VertexInputRate = engine::graphics::VertexInputRate;
 
 public:
     GLVertexArray(GLVertexArray&& other);
@@ -50,12 +51,15 @@ public:
         GLuint slot,
         GLBuffer& buffer,
         GLintptr offset,
-        GLsizei stride
+        GLsizei stride,
+        VertexInputRate rate
     );
 
     // creates a vertex attribute, binds it to the given buffer slot, and enables it
     // a vertex attribute tells opengl how to interpret the underlying buffer
     // 'attrib_slot' will correspond to the underlying shader interface variable location
+    // only handles VertexFormats that describe one slot of information like Float32x2, 
+    //   will not work with stuff like Float32x4x4
     void gl_bind_vertex_attribute(
         GLuint attrib_slot,
         GLuint buffer_slot,

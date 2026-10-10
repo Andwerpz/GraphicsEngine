@@ -166,7 +166,7 @@ std::string parse_spirv_string(const std::vector<uint32_t>& words, size_t start)
 // documentation of "OpType*"" instructions : 
 //   https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html#OpTypeBool
 std::map<uint32_t, ShaderType> parse_shader_types(const std::vector<SpirvInstruction>& instructions) {
-    constexpr bool debug = true;
+    constexpr bool debug = false;
     auto get_from_id = []<typename T>(uint32_t id, std::map<uint32_t, T>& id_map) -> T& {
         if(!id_map.contains(id)) {
             engine::utils::throw_error("Tried to get with undeclared id : " + std::to_string(id));

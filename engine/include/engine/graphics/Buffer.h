@@ -26,6 +26,7 @@ protected:
     Buffer(uint64_t size, BufferUsage usage, BufferFrequency frequency);
 
     // size of buffer in bytes
+    // buffer size is fixed after creation 
     uint64_t size;
 
     // what is this buffer meant to be used for

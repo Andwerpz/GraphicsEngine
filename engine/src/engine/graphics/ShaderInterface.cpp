@@ -23,7 +23,10 @@ ShaderInterface ShaderInterface::unify(ShaderInterface& left, ShaderInterface& r
         ShaderInterfaceVariable& left_var = i->second;
         ShaderInterfaceVariable& right_var = right.inputs.at(location);
         if(!(left_var.type == right_var.type)) {
-            engine::utils::throw_error("left and right interface variable types are not equal at location " + std::to_string(location));
+            engine::utils::throw_error(
+                "left and right interface variable types are not equal at location " + std::to_string(location) +
+                "left : " + to_string(left_var.type) + " right : " + to_string(right_var.type)
+            );
         }
     }
 

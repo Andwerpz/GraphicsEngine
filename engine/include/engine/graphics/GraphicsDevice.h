@@ -46,8 +46,7 @@ public:
     GraphicsDevice& operator=(const GraphicsDevice&) = delete;
     GraphicsDevice& operator=(GraphicsDevice&&) = delete;
 
-    // -- EXTERNAL API --
-    // GPU resources
+    // -- RESOURCES --
     virtual std::unique_ptr<Buffer> create_buffer(
         uint64_t size,
         BufferUsage usage,
@@ -85,8 +84,11 @@ public:
 
     // should compile the given shader for the underlying graphics device 
     virtual std::unique_ptr<Shader> create_shader(
-        fs::path source_path
+        const std::string_view& source,
+        ShaderStage stage,
+        const fs::path& source_path = "path_not_provided"
     ) = 0;
+    std::unique_ptr<Shader> create_shader(const fs::path& source_path);
 
     // create various types of programs using combinations of shaders
     virtual std::unique_ptr<RenderingProgram> create_rendering_program(
@@ -105,8 +107,14 @@ public:
         const char* title = "my window"
     ) = 0;
 
+    // -- ACTIONS --
     // make whatever was rendered since the last present() visible
     virtual void present(Window& window) = 0;
+
+    // -- HELPERS --
+    // should return the number of consecutive locations required by some vertex format
+    // assumes that a vertex attribute takes up some consecutive amount of locations
+    virtual uint32_t get_vertex_format_location_count(VertexFormat format) = 0;
 };
 
 }
