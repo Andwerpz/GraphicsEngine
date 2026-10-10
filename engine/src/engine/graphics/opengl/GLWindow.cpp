@@ -28,12 +28,7 @@ uint32_t GLWindow::get_height() {
 }
 
 void GLWindow::swap_buffers() {
-    std::cout << "Swapping buffers" << std::endl;
     glfwSwapBuffers(context.get_glfw_window());
-
-    GLint double_buffered = GL_FALSE;
-    glGetIntegerv(GL_DOUBLEBUFFER, &double_buffered);
-    std::cout << "Double buffered: " << (double_buffered == GL_TRUE ? "yes" : "no") << '\n';
 }
 
 }

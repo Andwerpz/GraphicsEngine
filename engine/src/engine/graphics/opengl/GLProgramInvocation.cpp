@@ -136,16 +136,8 @@ void GLRenderingProgramInvocation::draw_impl(
         GLWindowRenderTarget& gl_target = dynamic_cast<GLWindowRenderTarget&>(render_target.value().get());
         gl_device.gl_set_context(gl_target.get_window().get_context());
         gl_device.gl_bind_framebuffer(gl_target.get_framebuffer());
-        std::cout << "BIND WINDOW FRAMEBUFFER" << std::endl;
     }
     else assert(false);
-
-    GLint draw_fbo = -1;
-    glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &draw_fbo);
-    std::cout << "DRAW FBO : " << draw_fbo << '\n';
-
-    GLenum status = glCheckFramebufferStatus(GL_DRAW_FRAMEBUFFER);
-    std::cout << "FBO STATUS: 0x" << std::hex << status << std::dec << '\n';
 
     // bind vertex array
     assert(gl_vertex_array.has_value());
@@ -228,14 +220,12 @@ void GLRenderingProgramInvocation::draw_impl(
     }
     else {
         if(nr_instances == 1 && first_instance == 0) {
-            std::cout << "DRAW ARRAYS" << std::endl;
             gl_device.gl_draw_arrays(
                 nr_primitives,
                 first_primitive
             );
         }
         else {
-            std::cout << "DRAW ARRAYS INSTANCED" << std::endl;
             gl_device.gl_draw_arrays_instanced(
                 nr_primitives,
                 nr_instances,

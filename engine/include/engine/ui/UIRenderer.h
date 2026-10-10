@@ -32,6 +32,13 @@ namespace engine::ui {
 // - push_clip(top_left, dim)
 // - pop_clip()
 
+// text rendering TODO
+// - figure out how to load font files
+// - figure out how to represent fonts
+//   - using engine::assets::Font 
+// - figure out how to have array of texture samplers in a shader
+// - figure out what extra per-instance information we need (and how to minimize it)
+
 class UIRenderer {
     using GraphicsDevice = engine::graphics::GraphicsDevice;
     using RenderTarget = engine::graphics::RenderTarget;
@@ -56,8 +63,13 @@ public:
         float x, y;
     };
 
-    // draw commands
+    // draws an axis aligned rectangle with solid color
     void draw_rect(Rect rect, Color color);
+
+    // draws a line starting from start and ending at end
+    // the end pixels are included 
+    // horizontal and vertical lines of width 1 are guaranteed to be pixel perfect
+    // TODO make all lines of width 1 pixel perfect
     void draw_line(Vec2 start, Vec2 end, float width, Color color);
 
     // void draw_text();
@@ -99,6 +111,9 @@ private:
         Vec2 start, end;
         float width;
         Color color;
+    };
+    struct DrawTexturedRect {
+        // TODO
     };
     using Command = std::variant<
         SetClip,

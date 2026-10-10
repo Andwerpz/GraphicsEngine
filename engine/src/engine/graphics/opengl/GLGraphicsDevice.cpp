@@ -241,7 +241,6 @@ void GLGraphicsDevice::gl_reset_context() {
 void GLGraphicsDevice::gl_set_context(GLContext& context) {
     assert(context.get_glfw_window() != nullptr);
     if(bound_context == &context) return;
-    std::cout << "SET CONTEXT : " << (uint64_t) &context << std::endl;
     glfwMakeContextCurrent(context.get_glfw_window());
     bound_context = &context;
 }

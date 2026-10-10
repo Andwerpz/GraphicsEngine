@@ -192,11 +192,9 @@ void UIRenderer::render() {
         uint64_t cpu_buf_upload_sz = sizeof(float) * cpu_buf_ptr;
         assert(gpu_buf_ptr + cpu_buf_upload_sz <= INSTANCE_BUFFER_SIZE);
         instance_buffer->upload_data(cpu_buf, cpu_buf_upload_sz, gpu_buf_ptr);
-        std::cout << "FLUSH : " << gpu_buf_ptr << " " << cpu_buf_upload_sz << std::endl;
 
         // render
         rect_invocation->draw(2, cpu_instance_cnt, 0, gpu_instance_ptr);
-        std::cout << "RENDER : " << gpu_instance_ptr << " " << cpu_instance_cnt << std::endl;
 
         // reset CPU buffer
         gpu_buf_ptr += cpu_buf_upload_sz;
@@ -225,7 +223,6 @@ void UIRenderer::render() {
         if(cpu_instance_cnt == INSTANCE_AMT) {
             flush_instances();
         }
-        flush_instances();
     };
 
     for(Command _cmd : commands) {
@@ -249,26 +246,56 @@ void UIRenderer::render() {
             DrawLine cmd = std::get<DrawLine>(_cmd);
             Vec2 start = cmd.start;
             Vec2 end = cmd.end;
-            float width;
+            float width = cmd.width;
             Color color = cmd.color;
 
-            // model
+            auto snap_center = [](float v, float w) -> float {
+                return (static_cast<int>(w) % 2 == 1) ? std::floor(v) + 0.5f : std::round(v);
+            };
             float dx = end.x - start.x;
             float dy = end.y - start.y;
-            float length = glm::length(glm::vec2 {dx, dy});
-            float angle = std::atan2(dy, dx);
+            const float eps = 1e-4f;
+
             glm::mat4 transform(1.0f);
-            transform = glm::translate(transform, glm::vec3(start.x, start.y, 0.0f));
-            transform = glm::rotate(transform, angle, glm::vec3(0.0f, 0.0f, 1.0f));
-            transform = glm::scale(transform, glm::vec3(length, width, 1.0f));
+            if(std::abs(dy) < eps) {                       // horizontal
+                float y = snap_center(start.y, width);
+                float x0 = std::round(std::min(start.x, end.x));
+                float x1 = std::round(std::max(start.x, end.x)) + 1.0;  // include last pixel
+                transform = glm::translate(glm::mat4(1.0f), glm::vec3(x0, y - width / 2.0f, 0.0f));
+                transform = glm::scale(transform, glm::vec3(x1 - x0, width, 1.0f));
+            }
+            else if(std::abs(dx) < eps) {                  // vertical
+                float x = snap_center(start.x, width);
+                float y0 = std::round(std::min(start.y, end.y));
+                float y1 = std::round(std::max(start.y, end.y)) + 1.0;  // include last pixel
+                transform = glm::translate(glm::mat4(1.0f), glm::vec3(x - width / 2.0f, y0, 0.0f));
+                transform = glm::scale(transform, glm::vec3(width, y1 - y0, 1.0f));
+            }
+            else {                                          // diagonal
+                glm::vec2 a{start.x + 0.5f, start.y + 0.5f};
+                glm::vec2 b{end.x + 0.5f,   end.y + 0.5f};
+
+                glm::vec2 d = b - a;
+                float len = glm::length(d);
+                if (len > 1e-6f) {
+                    glm::vec2 dir = d / len;
+                    a -= dir * 0.5f;      // extend half a pixel past each end
+                    b += dir * 0.5f;
+                }
+
+                float length = glm::length(b - a);
+                float angle  = std::atan2(b.y - a.y, b.x - a.x);
+                transform = glm::translate(glm::mat4(1.0f), glm::vec3(a.x, a.y, 0.0f));
+                transform = glm::rotate(transform, angle, glm::vec3(0, 0, 1));
+                transform = glm::translate(transform, glm::vec3(0.0f, -width / 2.0f, 0.0f));
+                transform = glm::scale(transform, glm::vec3(length, width, 1.0f));
+            }
 
             write_instance(transform, color);
         }
         else assert(false);
     }
     flush_instances();
-
-    std::cout << "END UI RENDER\n" << std::endl;
 
     free(cpu_buf);
     reset();
