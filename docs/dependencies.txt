@@ -8,3 +8,5 @@ sudo apt install \
     libx11-dev \
     libwayland-dev \
     libxkbcommon-dev
+
+spirv-header spirv-tools

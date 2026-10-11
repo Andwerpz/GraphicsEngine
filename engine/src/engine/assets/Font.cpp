@@ -61,16 +61,12 @@ Font Font::load_font(const fs::path& path) {
     }
 
     for(char c = 0; ; c++) {
-        
-        if(c == 255) break;
-    }   
+        if(FT_Load_Char(face, c, FT_LOAD_RENDER)) {
+            continue;
+        }
+        std::cout << "Loaded glyph for char : " << (int) c << std::endl;
 
-    if(FT_Load_Char(face, 'A', FT_LOAD_RENDER)) {
-        engine::utils::throw_error("Failed to load glyph : " + path.string());
-    }
-    else {
         FT_GlyphSlot glyph = face->glyph;
-
         std::cout << "Bitmap size: "
                   << glyph->bitmap.width << " x "
                   << glyph->bitmap.rows << '\n';
@@ -83,9 +79,12 @@ Font Font::load_font(const fs::path& path) {
                   << glyph->advance.x / 64.0f << " pixels\n";
 
         print_bitmap(glyph->bitmap);
+        std::cout << "\n";
 
         // Pixel data:
         // glyph->bitmap.buffer
+
+        if(c == 127) break;
     }
 
     FT_Done_Face(face);
