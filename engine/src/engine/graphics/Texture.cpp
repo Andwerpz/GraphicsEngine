@@ -6,12 +6,15 @@
 namespace engine::graphics {
 
 Texture::Texture(Texture&& other) {
+    texture_id = other.texture_id;
     type = other.type;
     format = other.format;
     width = other.width;
     height = other.height;
     depth = other.depth;
     mip_levels = other.mip_levels;
+
+    other.texture_id = 0;
 }
 
 Texture::Texture(
@@ -27,7 +30,7 @@ Texture::Texture(
     height(height),
     depth(depth),
     mip_levels(mip_levels) {
-    // do nothing
+    texture_id = next_texture_id.fetch_add(1, std::memory_order_relaxed);
 }
 
 Texture::~Texture() = default;

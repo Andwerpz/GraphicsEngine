@@ -16,6 +16,7 @@ GLRenderingProgramInvocation::GLRenderingProgramInvocation(
 }
 
 void GLRenderingProgramInvocation::validate_impl() {
+    // TODO maybe move these checks into RenderingProgramInvocation
     // make sure render target has been bound
     if(!render_target.has_value()) {
         engine::utils::throw_error("no render target has been bound");
@@ -126,9 +127,6 @@ void GLRenderingProgramInvocation::draw_impl(
     uint32_t first_primitive,
     uint32_t first_instance
 ) {
-    // start execution context
-    gl_device.gl_begin();
-
     // bind render target
     if(dynamic_cast<GLTextureRenderTarget*>(&(render_target.value().get())) != nullptr) {
         // render in headless context
@@ -185,24 +183,21 @@ void GLRenderingProgramInvocation::draw_impl(
     }
 
     // misc settings
-    glDisable(GL_BLEND);
+    glEnable(GL_BLEND);
+    glBlendFuncSeparate(
+        GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA,
+        GL_ONE, GL_ONE_MINUS_SRC_ALPHA
+    );
     gl_device.gl_set_viewport(
         0, 0, 
         render_target.value().get().get_width(),
         render_target.value().get().get_height()
     );
-    if(depth_testing) {
+    if(depth_testing) 
         glEnable(GL_DEPTH_TEST);
-    }
-    else {
+    else 
         glDisable(GL_DEPTH_TEST);
-    }
-    if(clear_color || clear_depth) {
-        GLenum clear_flags = 
-            (clear_color ? GL_COLOR_BUFFER_BIT : 0) |
-            (clear_depth ? GL_DEPTH_BUFFER_BIT : 0);
-        glClear(clear_flags);
-    }
+    render_target.value().get().clear(clear_flags);
 
     // execute program
     gl_device.gl_bind_rendering_program(gl_program);
@@ -238,9 +233,6 @@ void GLRenderingProgramInvocation::draw_impl(
             );
         }
     }
-
-    // end execution context
-    gl_device.gl_end();
 }
 
 }

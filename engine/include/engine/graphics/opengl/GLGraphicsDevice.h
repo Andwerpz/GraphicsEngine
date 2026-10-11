@@ -17,11 +17,14 @@
 #include "GLShader.h"
 #include "GLProgram.h"
 #include "GLWindow.h"
+#include "GLContext.h"
+
+class GLFWwindow;
 
 namespace engine::graphics::opengl {
 
 // meant to be a thin wrapper over underlying OpenGL graphics API 
-// mostly here for convenience and so that users don't have to directly use OpenGL
+// should also track opengl state to provide some cheap sanity checking
 
 class GLGraphicsDevice : public engine::graphics::GraphicsDevice {
     friend class GLBuffer;
@@ -35,6 +38,7 @@ class GLGraphicsDevice : public engine::graphics::GraphicsDevice {
     friend class GLShader;
     friend class GLGraphicsProgram;
     friend class GLComputeProgram;
+    friend class GLContext;
     
 public:
     // -- INIT --
@@ -53,10 +57,17 @@ public:
     // drains all errors and prints them out
     void gl_get_error();
 
-    // context management
+    // -- CONTEXT MANAGEMENT --
+    // sets context to the headless context
     void gl_reset_context();
     void gl_set_context(GLContext& context);
+
+    // gets the currently bound context
     GLContext& gl_get_context();
+
+    // deletes the given context
+    // if the given context is currently the one bound, binds the headless context first
+    void gl_delete_context(GLContext& context);
 
     // -- RESOURCES --
     // these are for creating, managing, and deleting resources
@@ -119,14 +130,6 @@ public:
     void gl_delete_compute_program(GLuint handle);
 
     // -- EXECUTION --
-    // all methods here need to be ran between a begin() and end()
-    // these will modify the execution state until the next end() 
-    // when you begin(), you should have no inherited execution state 
-
-    // state management
-    void gl_begin();
-    void gl_end();
-
     // resource binding
     void gl_bind_buffer(uint32_t slot, GLBuffer& buf);
     void gl_bind_sampler(uint32_t slot, GLSampler& sampler);
@@ -235,7 +238,8 @@ public:
 private:
     // hidden window created to initialize OpenGL graphics device
     // this should be used to create all other windows so they can share resources
-    // is populated during init
+    // populated during init
+    // this context cannot be deleted while this device is still alive
     std::optional<GLContext> headless_context;
 
     // represents the OpenGL context that is currently actively bound
@@ -243,20 +247,32 @@ private:
     // is initialized to headless_context
     GLContext* bound_context = nullptr;
 
-    // whether or not we are inside an execution context
-    bool executing = false;
+    // stores per-context OpenGL state
+    struct GLContextState {
+        GLint MAX_UNIFORM_BUFFER_BINDINGS;
+        GLint MAX_STORAGE_BUFFER_BINDINGS;
+        GLint MAX_TEXTURE_BINDINGS;
 
-    std::vector<std::optional<GLBuffer*>> bound_uniform_buffers;
-    std::vector<std::optional<GLBuffer*>> bound_storage_buffers;
-    std::vector<std::optional<GLTexture*>> bound_textures;
-    std::vector<std::optional<GLSampler*>> bound_samplers;
+        std::vector<std::optional<GLBuffer*>> bound_uniform_buffers;
+        std::vector<std::optional<GLBuffer*>> bound_storage_buffers;
+        std::vector<std::optional<GLTexture*>> bound_textures;
+        std::vector<std::optional<GLSampler*>> bound_samplers;
 
-    std::optional<GLVertexArray*> bound_vertex_array;
-    std::optional<GLFramebuffer*> bound_framebuffer;
+        std::optional<GLVertexArray*> bound_vertex_array;
+        std::optional<GLFramebuffer*> bound_framebuffer;
 
-    bool program_bound = false;
-    std::optional<GLRenderingProgram*> bound_rendering_program;
-    std::optional<GLComputeProgram*> bound_compute_program;
+        std::optional<GLRenderingProgram*> bound_rendering_program;
+        std::optional<GLComputeProgram*> bound_compute_program;
+
+        // TODO store viewport and scissor state as well
+    };
+    std::map<GLFWwindow*, GLContextState> context_state;
+
+    // creates a GLContext and does whatever other bookeeping required 
+    GLContext gl_create_context(GLFWwindow* glfw_window);
+
+    // gets the context state for whatever the currently bound context is
+    GLContextState& gl_get_context_state();
 };
 
 }

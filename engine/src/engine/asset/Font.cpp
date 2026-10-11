@@ -125,7 +125,7 @@ Font Font::load_font(const fs::path& path) {
     }
 
     // Request glyphs at 24 pixels per EM
-    if (FT_Set_Pixel_Sizes(face, 0, 24)) {
+    if (FT_Set_Pixel_Sizes(face, 0, 48)) {
         FT_Done_Face(face);
         FT_Done_FreeType(library);
         engine::utils::throw_error("Failed to set font size : " + path.string());

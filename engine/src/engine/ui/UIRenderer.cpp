@@ -1,13 +1,6 @@
 #include <engine/ui/UIRenderer.h>
 #include <engine/utils/error.h>
 
-#include <engine/graphics/Program.h>
-#include <engine/graphics/ProgramInvocation.h>
-#include <engine/graphics/Buffer.h>
-#include <engine/graphics/Shader.h>
-
-#include <engine/graphics/opengl/GLBuffer.h>
-
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -26,10 +19,13 @@ const char* rect_vert_source = R"(
 
 layout (location = 0) in mat4 model;
 layout (location = 4) in vec4 color;
+layout (location = 5) in vec4 uv;   // packed min xy, max xy
+layout (location = 6) in vec4 info; 
 
 layout (location = 0) out vec2 frag_pos;
 layout (location = 1) out vec2 frag_uv;
 layout (location = 2) out vec4 frag_color;
+layout (location = 3) out vec4 frag_info;
 
 layout (binding = 0) uniform Camera {
     mat4 projection;
@@ -48,8 +44,9 @@ void main() {
     vec2 pos = vertices[gl_VertexID];
     gl_Position = camera.projection * model * vec4(pos, 0.0, 1.0);
     frag_pos = (model * vec4(pos, 0.0, 1.0)).xy;
-    frag_uv = pos;
+    frag_uv = mix(uv.xy, uv.zw, pos);
     frag_color = color;
+    frag_info = info;
 }
 )";
 
@@ -59,14 +56,24 @@ const char* rect_frag_source = R"(
 layout (location = 0) in vec2 frag_pos;
 layout (location = 1) in vec2 frag_uv;
 layout (location = 2) in vec4 frag_color;
+layout (location = 3) in vec4 frag_info;    // {read from texture, unused, unused, unused}
 
 layout (location = 0) out vec4 color;
 
+layout (binding = 1) uniform sampler2D albedo;
+
 void main() {
-    // color = rect.color;
-    // color = vec4(frag_uv, 0.0, 1.0);
-    // color = vec4(1.0);
-    color = frag_color;
+    if(frag_info.x != 0.0) {
+        // sample texture
+        vec4 samp = texture(albedo, frag_uv);
+        vec3 base_color = samp.rgb * frag_color.rgb;
+        float alpha = samp.a * frag_color.a;
+        color = vec4(base_color, alpha);
+    }
+    else {
+        // single color
+        color = frag_color;
+    }
 }
 )";
 
@@ -106,7 +113,7 @@ UIRenderer::UIRenderer(
             0,
             *instance_buffer,
             0,
-            4 * 20,
+            INSTANCE_SIZE,
             VertexInputRate::Instance,
             VertexFormat::Float32x4x4
         );
@@ -114,7 +121,23 @@ UIRenderer::UIRenderer(
             4,
             *instance_buffer,
             4 * 16,
+            INSTANCE_SIZE,
+            VertexInputRate::Instance,
+            VertexFormat::Float32x4
+        );
+        rect_invocation->bind_vertex_attribute(     // instance uv
+            5,
+            *instance_buffer,
             4 * 20,
+            INSTANCE_SIZE,
+            VertexInputRate::Instance,
+            VertexFormat::Float32x4
+        );
+        rect_invocation->bind_vertex_attribute(     // instance info
+            6,
+            *instance_buffer,
+            4 * 24,
+            INSTANCE_SIZE,
             VertexInputRate::Instance,
             VertexFormat::Float32x4
         );
@@ -134,6 +157,13 @@ UIRenderer::UIRenderer(
         rect_invocation->do_depth_testing(false);
         rect_invocation->do_clear_color(false);
     }
+
+    default_texture = device.create_texture(
+        engine::graphics::TextureDimension::D2,
+        engine::graphics::TextureFormat::RGBA32F,
+        1, 1, 1, 1
+    );
+    default_sampler = device.create_sampler();
 }
 
 void UIRenderer::draw_rect(Rect rect, Color color) {
@@ -223,7 +253,6 @@ void UIRenderer::pop_clip() {
 void UIRenderer::render() {
     // buffer for uploading data to the instance buffer
     assert(INSTANCE_BUFFER_SIZE % sizeof(float) == 0);
-    const uint64_t INSTANCE_SIZE = sizeof(float) * 20;
     const uint64_t INSTANCE_AMT = INSTANCE_BUFFER_SIZE / INSTANCE_SIZE;
     float* cpu_buf = (float*) malloc(INSTANCE_BUFFER_SIZE);
     uint64_t cpu_buf_ptr = 0;
@@ -231,6 +260,7 @@ void UIRenderer::render() {
 
     uint64_t gpu_buf_ptr = 0;
     uint64_t gpu_instance_ptr = 0;
+    std::optional<Texture*> bound_texture = std::nullopt;
 
     auto flush_instances = [&]() {
         if(cpu_instance_cnt == 0) return;
@@ -240,17 +270,39 @@ void UIRenderer::render() {
         assert(gpu_buf_ptr + cpu_buf_upload_sz <= INSTANCE_BUFFER_SIZE);
         instance_buffer->upload_data(cpu_buf, cpu_buf_upload_sz, gpu_buf_ptr);
 
+        // bind textures
+        if(bound_texture.has_value()) {
+            rect_invocation->bind_sampled_texture(
+                {0, 1},
+                *bound_texture.value(),
+                *default_sampler
+            );
+        }
+        else {
+            rect_invocation->bind_sampled_texture(
+                {0, 1},
+                *default_texture,
+                *default_sampler
+            );
+        }
+
         // render
         rect_invocation->draw(2, cpu_instance_cnt, 0, gpu_instance_ptr);
 
-        // reset CPU buffer
-        gpu_buf_ptr += cpu_buf_upload_sz;
-        gpu_instance_ptr += cpu_instance_cnt;
-
+        // reset command batch state
         cpu_buf_ptr = 0;
         cpu_instance_cnt = 0;
+
+        gpu_buf_ptr += cpu_buf_upload_sz;
+        gpu_instance_ptr += cpu_instance_cnt;
+        bound_texture = std::nullopt;
     };
-    auto write_instance = [&](glm::mat4 transform, Color color) {
+    auto write_instance = [&](
+        glm::mat4 transform, 
+        Color color, 
+        glm::vec4 uv = {0, 0, 1, 1},
+        bool sample_texture = false
+    ) {
         assert(cpu_instance_cnt < INSTANCE_AMT);
         cpu_instance_cnt ++;
 
@@ -265,6 +317,18 @@ void UIRenderer::render() {
         cpu_buf[cpu_buf_ptr ++] = color.g;
         cpu_buf[cpu_buf_ptr ++] = color.b;
         cpu_buf[cpu_buf_ptr ++] = color.a;
+
+        // uv
+        cpu_buf[cpu_buf_ptr ++] = uv.x;
+        cpu_buf[cpu_buf_ptr ++] = uv.y;
+        cpu_buf[cpu_buf_ptr ++] = uv.z;
+        cpu_buf[cpu_buf_ptr ++] = uv.w;
+
+        // info
+        cpu_buf[cpu_buf_ptr ++] = sample_texture ? 1.0f : 0.0f;
+        cpu_buf[cpu_buf_ptr ++] = 0;
+        cpu_buf[cpu_buf_ptr ++] = 0;
+        cpu_buf[cpu_buf_ptr ++] = 0;
 
         // flush if buffer is full
         if(cpu_instance_cnt == INSTANCE_AMT) {
@@ -346,8 +410,27 @@ void UIRenderer::render() {
             Rect uv_rect = cmd.uv_rect;
             uint64_t asset_id = cmd.asset_id;
 
-            // TODO
-            assert(false);
+            // bind texture
+            assert(asset_textures.contains(asset_id));
+            auto& texture = asset_textures.at(asset_id);
+            if(bound_texture.has_value() && texture->get_texture_id() != bound_texture.value()->get_texture_id()) {
+                flush_instances();
+            }
+            bound_texture = texture.get();
+
+            // write instance
+            glm::mat4 transform(
+                vertex_rect.width,  0.0f,               0.0f, 0.0f,
+                0.0f,               vertex_rect.height, 0.0f, 0.0f,
+                0.0f,               0.0f,               1.0f, 0.0f,
+                vertex_rect.x,      vertex_rect.y,      0.0f, 1.0f
+            );
+            write_instance(
+                transform,
+                {1, 1, 1, 1}, 
+                {uv_rect.x, uv_rect.y, uv_rect.x + uv_rect.width, uv_rect.y + uv_rect.height},
+                true
+            );
         }
         else assert(false);
     }

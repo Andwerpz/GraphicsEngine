@@ -41,11 +41,11 @@ GLTexture::GLTexture(
 }
 
 void GLTexture::upload_data(
-    const void* _data,
+    const void* data,
     uint32_t mip_level,
     uint32_t cube_face
 ) {
-    if(_data == nullptr) {
+    if(data == nullptr) {
         engine::utils::throw_error("data cannot be nullptr");
     }
     if(mip_level >= get_mip_levels()) {
@@ -60,65 +60,6 @@ void GLTexture::upload_data(
         if(cube_face > 0) {
             engine::utils::throw_error("cube_face should be 0 for non-cubemap texture");
         }
-    }
-
-    // OpenGL defines the bottom left of an image as the origin
-    // this means that the first texel of the last row is the origin
-    // curiously, this flipping is not present in cubemaps
-    // see if we need to flip data 
-    bool flip_y = false;
-    bool flip_z = false;
-    switch(get_dimension()) {
-        case TextureDimension::D1:
-            break;
-        case TextureDimension::D2:
-            flip_y = true;
-            break;
-        case TextureDimension::D3:
-            flip_y = true;
-            flip_z = true;
-            break;
-        case TextureDimension::Cube:
-            break;
-        default:
-            assert(false);
-    }
-
-    // flip data 
-    const void* data = _data;
-    std::vector<std::byte> flipped_data;
-    if(flip_y || flip_z) {
-        const uint32_t width = get_width(mip_level);
-        const uint32_t height = get_height(mip_level);
-        const uint32_t depth = get_depth(mip_level);
-        const uint32_t texel_size = get_texel_size();
-
-        const size_t row_size = static_cast<size_t>(width) * texel_size;
-        const size_t slice_size = static_cast<size_t>(height) * row_size;
-        const size_t data_size = static_cast<size_t>(depth) * slice_size;
-        flipped_data.resize(data_size);
-
-        const auto* src = static_cast<const std::byte*>(_data);
-        auto* dst = flipped_data.data();
-        for(uint32_t z = 0; z < depth; ++z) {
-            const uint32_t src_z = flip_z ? (depth - 1 - z) : z;
-            for(uint32_t y = 0; y < height; ++y) {
-                const uint32_t src_y = flip_y ? (height - 1 - y) : y;
-                const size_t src_offset =
-                    static_cast<size_t>(src_z) * slice_size +
-                    static_cast<size_t>(src_y) * row_size;
-                const size_t dst_offset =
-                    static_cast<size_t>(z) * slice_size +
-                    static_cast<size_t>(y) * row_size;
-
-                std::memcpy(
-                    dst + dst_offset,
-                    src + src_offset,
-                    row_size
-                );
-            }
-        }
-        data = flipped_data.data();
     }
 
     // upload data 

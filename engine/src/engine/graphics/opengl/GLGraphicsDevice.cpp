@@ -42,13 +42,7 @@ GLGraphicsDevice::GLGraphicsDevice() {
         glfwTerminate();
         engine::utils::throw_error("Failed to create headless GLFW window");
     }
-
-    // set active context to hidden window
-    headless_context.emplace(std::move(GLContext(
-        *this,
-        glfw_window
-    )));
-    gl_reset_context();
+    glfwMakeContextCurrent(glfw_window);
 
     // load OpenGL function pointers for current thread
     if(gladLoadGL() == 0) {
@@ -59,31 +53,10 @@ GLGraphicsDevice::GLGraphicsDevice() {
 
     std::cout << "OpenGL Renderer : " << glGetString(GL_RENDERER) << std::endl;
     std::cout << "OpenGL Version : " << glGetString(GL_VERSION) << std::endl;
-    
-    // grab capabilities
-    GLint gl_max_uniform_buffer_slots;
-    GLint gl_max_storage_buffer_slots;
-    GLint gl_max_texture_slots;
-    GLint gl_max_sampler_slots;
-    glGetIntegerv(GL_MAX_UNIFORM_BUFFER_BINDINGS, &gl_max_uniform_buffer_slots);
-    glGetIntegerv(GL_MAX_SHADER_STORAGE_BUFFER_BINDINGS, &gl_max_storage_buffer_slots);
-    glGetIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &gl_max_texture_slots);
-    glGetIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &gl_max_sampler_slots);
 
-    assert(gl_max_uniform_buffer_slots > 0);
-    assert(gl_max_storage_buffer_slots > 0);
-    assert(gl_max_texture_slots > 0);
-    assert(gl_max_texture_slots > 0);
-
-    std::cout << "gl_max_uniform_buffer_slots : " << gl_max_uniform_buffer_slots << "\n";
-    std::cout << "gl_max_storage_buffer_slots : " << gl_max_storage_buffer_slots << "\n";
-    std::cout << "gl_max_texture_slots : " << gl_max_texture_slots << "\n";
-    std::cout << "gl_max_sampler_slots : " << gl_max_sampler_slots << "\n";
-    
-    bound_uniform_buffers.resize(gl_max_uniform_buffer_slots, std::nullopt);
-    bound_storage_buffers.resize(gl_max_storage_buffer_slots, std::nullopt);
-    bound_textures.resize(gl_max_texture_slots, std::nullopt);
-    bound_samplers.resize(gl_max_sampler_slots, std::nullopt);
+    // set active context to hidden window
+    headless_context.emplace(gl_create_context(glfw_window));
+    gl_reset_context();
 }
 
 // -- UTILS --
@@ -240,6 +213,7 @@ void GLGraphicsDevice::gl_reset_context() {
 
 void GLGraphicsDevice::gl_set_context(GLContext& context) {
     assert(context.get_glfw_window() != nullptr);
+    assert(&context.device == this);
     if(bound_context == &context) return;
     glfwMakeContextCurrent(context.get_glfw_window());
     bound_context = &context;
@@ -248,6 +222,49 @@ void GLGraphicsDevice::gl_set_context(GLContext& context) {
 GLContext& GLGraphicsDevice::gl_get_context() {
     assert(bound_context != nullptr);
     return *bound_context;
+}
+
+void GLGraphicsDevice::gl_delete_context(GLContext& context) {
+    assert(&context.device == this);
+    if(gl_get_context() == context) {
+        gl_reset_context();
+    }
+    assert(gl_get_context() != context);
+
+    GLFWwindow* glfw_window = context.get_glfw_window();
+    assert(context_state.contains(glfw_window));
+    context_state.erase(glfw_window);
+    glfwDestroyWindow(glfw_window);
+}
+
+GLContext GLGraphicsDevice::gl_create_context(GLFWwindow* glfw_window) {
+    glfwMakeContextCurrent(glfw_window);
+
+    // build context state
+    assert(!context_state.contains(glfw_window));
+    GLContextState state;
+    glGetIntegerv(GL_MAX_UNIFORM_BUFFER_BINDINGS, &state.MAX_UNIFORM_BUFFER_BINDINGS);
+    glGetIntegerv(GL_MAX_SHADER_STORAGE_BUFFER_BINDINGS, &state.MAX_STORAGE_BUFFER_BINDINGS);
+    glGetIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &state.MAX_TEXTURE_BINDINGS);
+    state.bound_uniform_buffers.resize(state.MAX_UNIFORM_BUFFER_BINDINGS, std::nullopt);
+    state.bound_storage_buffers.resize(state.MAX_STORAGE_BUFFER_BINDINGS, std::nullopt);
+    state.bound_textures.resize(state.MAX_TEXTURE_BINDINGS, std::nullopt);
+    state.bound_samplers.resize(state.MAX_TEXTURE_BINDINGS, std::nullopt);
+    context_state.emplace(glfw_window, state);
+
+    // re-bind originally bound context
+    if(bound_context != nullptr) {
+        gl_set_context(*bound_context);
+    }
+
+    return std::move(GLContext(*this, glfw_window));
+}
+
+GLGraphicsDevice::GLContextState& GLGraphicsDevice::gl_get_context_state() {
+    assert(bound_context != nullptr);
+    GLFWwindow* glfw_window = bound_context->get_glfw_window();
+    assert(context_state.contains(glfw_window));
+    return context_state.at(glfw_window);
 }
 
 // -- RESOURCES --
@@ -672,96 +689,27 @@ void GLGraphicsDevice::gl_delete_compute_program(GLuint gl_handle) {
 
 
 // -- EXECUTION --
-void GLGraphicsDevice::gl_begin() {
-    assert(!executing);
-    executing = true;
-
-    // make sure nothing is bound
-    // TODO
-}
-
-void GLGraphicsDevice::gl_end() {
-    assert(executing);
-    executing = false;
-
-    // for now, unbind anything that is still bound
-    // TODO switch to a lazy unbinding scheme where we only unbind when necessary
-
-    // unbind uniform buffers
-    for(int i = 0; i < bound_uniform_buffers.size(); i++) {
-        if(!bound_uniform_buffers[i].has_value()) continue;
-        glBindBufferBase(GL_UNIFORM_BUFFER, i, 0);
-        bound_uniform_buffers[i] = std::nullopt;
-    }
-
-    // unbind storage buffers
-    for(int i = 0; i < bound_storage_buffers.size(); i++) {
-        if(!bound_storage_buffers[i].has_value()) continue;
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, i, 0);
-        bound_storage_buffers[i] = std::nullopt;
-    }
-
-    // unbind textures
-    for(int i = 0; i < bound_textures.size(); i++) {
-        if(!bound_textures[i].has_value()) continue;
-        glBindTextureUnit(i, 0);
-        bound_textures[i] = std::nullopt;
-    }
-    
-    // unbind samplers
-    for(int i = 0; i < bound_samplers.size(); i++) {
-        if(!bound_samplers[i].has_value()) continue;
-        glBindSampler(i, 0);
-        bound_samplers[i] = std::nullopt;
-    }
-
-    // unbind vertex array
-    if(bound_vertex_array.has_value()) {
-        glBindVertexArray(0);
-        bound_vertex_array = std::nullopt;
-    }
-
-    // unbind framebuffer
-    if(bound_framebuffer.has_value()) {
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-        bound_framebuffer = std::nullopt;
-    }
-
-    // unbind program
-    if(program_bound) {
-        glUseProgram(0);
-        program_bound = false;
-        bound_rendering_program = std::nullopt;
-        bound_compute_program = std::nullopt;
-    }
-}
-
 void GLGraphicsDevice::gl_bind_buffer(uint32_t slot, GLBuffer& buf) {
-    assert(executing);
     assert(&buf.device == this);
 
-    // make sure slot is in range and is unbound
+    // make sure slot is in range
     // should only be able to bind uniform buffers and storage buffers
+    GLContextState& state = gl_get_context_state();
     if(buf.get_usage() == BufferUsage::Uniform) {
-        if(slot >= bound_uniform_buffers.size()) {
-            engine::utils::throw_error("bind_buffer slot out of range, should be less than " + std::to_string(bound_uniform_buffers.size()));
+        if(slot >= state.MAX_UNIFORM_BUFFER_BINDINGS) {
+            engine::utils::throw_error("bind_buffer slot out of range, should be less than " + std::to_string(state.MAX_UNIFORM_BUFFER_BINDINGS));
         }
-        if(bound_uniform_buffers[slot] != std::nullopt) {
-            engine::utils::throw_error("buffer already bound to slot : " + std::to_string(slot));
-        }
+        state.bound_uniform_buffers[slot] = &buf;
     }
     else if(buf.get_usage() == BufferUsage::Storage) {
-        if(slot >= bound_storage_buffers.size()) {
-            engine::utils::throw_error("bind_buffer slot out of range, should be less than " + std::to_string(bound_storage_buffers.size()));
+        if(slot >= state.MAX_STORAGE_BUFFER_BINDINGS) {
+            engine::utils::throw_error("bind_buffer slot out of range, should be less than " + std::to_string(state.MAX_STORAGE_BUFFER_BINDINGS));
         }
-        if(bound_storage_buffers[slot] != std::nullopt) {
-            engine::utils::throw_error("buffer already bound to slot : " + std::to_string(slot));
-        }
+        state.bound_storage_buffers[slot] = &buf;
     }
     else {
         engine::utils::throw_error("bind_buffer should only be able to bind uniform and storage buffers");
     }
-    bound_uniform_buffers[slot] = &buf;
 
     // bind buffer to slot
     GLenum gl_target;
@@ -779,43 +727,36 @@ void GLGraphicsDevice::gl_bind_buffer(uint32_t slot, GLBuffer& buf) {
 }
 
 void GLGraphicsDevice::gl_bind_texture(uint32_t slot, GLTexture& tex) {
-    assert(executing);
     assert(&tex.device == this);
 
-    // make sure slot is in range and is unbound
-    if(slot >= bound_textures.size()) {
-        engine::utils::throw_error("bind_texture slot out of range, should be less than " + std::to_string(bound_textures.size()));
+    // make sure slot is in range
+    GLContextState& state = gl_get_context_state();
+    if(slot >= state.MAX_TEXTURE_BINDINGS) {
+        engine::utils::throw_error("bind_texture slot out of range, should be less than " + std::to_string(state.MAX_TEXTURE_BINDINGS));
     }
-    if(bound_textures[slot] != std::nullopt) {
-        engine::utils::throw_error("texture already bound to slot : " + std::to_string(slot));
-    }
-    bound_textures[slot] = &tex;
+    state.bound_textures[slot] = &tex;
     
     // bind texture
     glBindTextureUnit(slot, tex.get_handle());
 }
 
 void GLGraphicsDevice::gl_bind_sampler(uint32_t slot, GLSampler& sampler) {
-    assert(executing);
     assert(&sampler.device == this);
 
     // make sure slot is in range and unbound
-    if(slot >= bound_samplers.size()) {
-        // TODO
+    GLContextState& state = gl_get_context_state();
+    if(slot >= state.MAX_TEXTURE_BINDINGS) {
+        engine::utils::throw_error("bind_sampler slot out of range, should be less than " + std::to_string(state.MAX_TEXTURE_BINDINGS));
     }
-    if(bound_samplers[slot] != std::nullopt) {
-        // TODO
-    }
-    bound_samplers[slot] = &sampler;
+    state.bound_samplers[slot] = &sampler;
 
     // bind sampler
     glBindSampler(slot, sampler.get_handle());
 }
 
 void GLGraphicsDevice::gl_bind_vertex_array(GLVertexArray& va) {
-    assert(executing);
     assert(&va.device == this);
-    assert(!bound_vertex_array.has_value());
+    GLContextState& state = gl_get_context_state();
 
     // make sure context of this vertex array matches currently bound context
     assert(bound_context != nullptr);
@@ -824,13 +765,12 @@ void GLGraphicsDevice::gl_bind_vertex_array(GLVertexArray& va) {
     }
 
     glBindVertexArray(va.get_handle());
-    bound_vertex_array = &va;
+    state.bound_vertex_array = &va;
 }
 
 void GLGraphicsDevice::gl_bind_framebuffer(GLFramebuffer& fb) {
-    assert(executing);
     assert(&fb.device == this);
-    assert(!bound_framebuffer.has_value());
+    GLContextState& state = gl_get_context_state();
 
     // make sure context of this framebuffer matches currently bound context
     assert(bound_context != nullptr);
@@ -839,29 +779,25 @@ void GLGraphicsDevice::gl_bind_framebuffer(GLFramebuffer& fb) {
     }
 
     glBindFramebuffer(GL_FRAMEBUFFER, fb.get_handle());
-    bound_framebuffer = &fb;
+    state.bound_framebuffer = &fb;
 }
 
 void GLGraphicsDevice::gl_bind_rendering_program(GLRenderingProgram& program) {
-    assert(executing);
     assert(&program.device == this);
-    assert(!program_bound);
-    assert(!bound_rendering_program.has_value());
+    GLContextState& state = gl_get_context_state();
 
     glUseProgram(program.get_handle());
-    program_bound = true;
-    bound_rendering_program = &program;
+    state.bound_rendering_program = &program;
+    state.bound_compute_program = std::nullopt;
 }
 
 void GLGraphicsDevice::gl_bind_compute_program(GLComputeProgram& program) {
-    assert(executing);
     assert(&program.device == this);
-    assert(!program_bound);
-    assert(!bound_compute_program.has_value());
+    GLContextState& state = gl_get_context_state();
 
     glUseProgram(program.get_handle());
-    program_bound = true;
-    bound_compute_program = &program;
+    state.bound_compute_program = &program;
+    state.bound_rendering_program = std::nullopt;
 }
 
 void GLGraphicsDevice::gl_set_viewport(
@@ -872,7 +808,6 @@ void GLGraphicsDevice::gl_set_viewport(
     float min_z,
     float max_z
 ) {
-    assert(executing);
     if(width <= 0.0f || height <= 0.0f) {
         engine::utils::throw_error("Viewport width and height must be positive");
     }
@@ -893,7 +828,6 @@ void GLGraphicsDevice::gl_set_scissor(
     uint32_t width,
     uint32_t height
 ) {
-    assert(executing);
     if(width == 0 || height == 0) {
         engine::utils::throw_error("Scissor width and height must be non-zero");
     }
@@ -906,15 +840,15 @@ void GLGraphicsDevice::gl_draw_arrays(
     uint32_t primitive_count,
     uint32_t first_primitive
 ) {
-    assert(executing);
-    assert(bound_vertex_array.has_value());
-    assert(bound_framebuffer.has_value());
-    assert(bound_rendering_program.has_value());
-    assert(bound_vertex_array.value() != nullptr);
-    assert(bound_framebuffer.value() != nullptr);
-    assert(bound_rendering_program.value() != nullptr);
+    GLContextState& state = gl_get_context_state();
+    assert(state.bound_vertex_array.has_value());
+    assert(state.bound_framebuffer.has_value());
+    assert(state.bound_rendering_program.has_value());
+    assert(state.bound_vertex_array.value() != nullptr);
+    assert(state.bound_framebuffer.value() != nullptr);
+    assert(state.bound_rendering_program.value() != nullptr);
 
-    PrimitiveTopology topology = bound_rendering_program.value()->get_primitive_topology();
+    PrimitiveTopology topology = state.bound_rendering_program.value()->get_primitive_topology();
     GLenum gl_draw_mode = GLGraphicsDevice::gl_draw_mode(topology);
     uint64_t vertices_per_primitive = GLGraphicsDevice::gl_vertices_per_primitive(topology);
 
@@ -929,22 +863,22 @@ void GLGraphicsDevice::gl_draw_elements(
     uint32_t primitive_count,
     uint32_t first_primitive
 ) {
-    assert(executing);
-    assert(bound_vertex_array.has_value());
-    assert(bound_framebuffer.has_value());
-    assert(bound_rendering_program.has_value());
-    assert(bound_vertex_array.value() != nullptr);
-    assert(bound_framebuffer.value() != nullptr);
-    assert(bound_rendering_program.value() != nullptr);
-    if(!bound_vertex_array.value()->has_index_buffer()) {
+    GLContextState& state = gl_get_context_state();
+    assert(state.bound_vertex_array.has_value());
+    assert(state.bound_framebuffer.has_value());
+    assert(state.bound_rendering_program.has_value());
+    assert(state.bound_vertex_array.value() != nullptr);
+    assert(state.bound_framebuffer.value() != nullptr);
+    assert(state.bound_rendering_program.value() != nullptr);
+    if(!state.bound_vertex_array.value()->has_index_buffer()) {
         engine::utils::throw_error("gl_draw_elements expects the bound vertex array to have a bound index buffer");
     }
 
-    PrimitiveTopology topology = bound_rendering_program.value()->get_primitive_topology();
+    PrimitiveTopology topology = state.bound_rendering_program.value()->get_primitive_topology();
     GLenum gl_draw_mode = GLGraphicsDevice::gl_draw_mode(topology);
     uint64_t vertices_per_primitive = gl_vertices_per_primitive(topology);
     
-    IndexFormat index_format = bound_vertex_array.value()->get_index_format();
+    IndexFormat index_format = state.bound_vertex_array.value()->get_index_format();
     GLenum gl_index_type = GLGraphicsDevice::gl_index_type(index_format);
     uint64_t index_type_size = GLGraphicsDevice::gl_index_type_size(index_format);
 
@@ -964,15 +898,15 @@ void GLGraphicsDevice::gl_draw_arrays_instanced(
     uint32_t first_primitive,
     uint32_t first_instance
 ) {
-    assert(executing);
-    assert(bound_vertex_array.has_value());
-    assert(bound_framebuffer.has_value());
-    assert(bound_rendering_program.has_value());
-    assert(bound_vertex_array.value() != nullptr);
-    assert(bound_framebuffer.value() != nullptr);
-    assert(bound_rendering_program.value() != nullptr);
+    GLContextState& state = gl_get_context_state();
+    assert(state.bound_vertex_array.has_value());
+    assert(state.bound_framebuffer.has_value());
+    assert(state.bound_rendering_program.has_value());
+    assert(state.bound_vertex_array.value() != nullptr);
+    assert(state.bound_framebuffer.value() != nullptr);
+    assert(state.bound_rendering_program.value() != nullptr);
 
-    PrimitiveTopology topology = bound_rendering_program.value()->get_primitive_topology();
+    PrimitiveTopology topology = state.bound_rendering_program.value()->get_primitive_topology();
     GLenum gl_draw_mode = GLGraphicsDevice::gl_draw_mode(topology);
     uint64_t vertices_per_primitive = GLGraphicsDevice::gl_vertices_per_primitive(topology);
 
@@ -991,22 +925,22 @@ void GLGraphicsDevice::gl_draw_elements_instanced(
     uint32_t first_primitive,
     uint32_t first_instance
 ) {
-    assert(executing);
-    assert(bound_vertex_array.has_value());
-    assert(bound_framebuffer.has_value());
-    assert(bound_rendering_program.has_value());
-    assert(bound_vertex_array.value() != nullptr);
-    assert(bound_framebuffer.value() != nullptr);
-    assert(bound_rendering_program.value() != nullptr);
-    if(!bound_vertex_array.value()->has_index_buffer()) {
+    GLContextState& state = gl_get_context_state();
+    assert(state.bound_vertex_array.has_value());
+    assert(state.bound_framebuffer.has_value());
+    assert(state.bound_rendering_program.has_value());
+    assert(state.bound_vertex_array.value() != nullptr);
+    assert(state.bound_framebuffer.value() != nullptr);
+    assert(state.bound_rendering_program.value() != nullptr);
+    if(!state.bound_vertex_array.value()->has_index_buffer()) {
         engine::utils::throw_error("gl_draw_elements_instanced expects the bound vertex array to have a bound index buffer");
     }
     
-    PrimitiveTopology topology = bound_rendering_program.value()->get_primitive_topology();
+    PrimitiveTopology topology = state.bound_rendering_program.value()->get_primitive_topology();
     GLenum gl_draw_mode = GLGraphicsDevice::gl_draw_mode(topology);
     uint64_t vertices_per_primitive = gl_vertices_per_primitive(topology);
     
-    IndexFormat index_format = bound_vertex_array.value()->get_index_format();
+    IndexFormat index_format = state.bound_vertex_array.value()->get_index_format();
     GLenum gl_index_type = GLGraphicsDevice::gl_index_type(index_format);
     uint64_t index_type_size = GLGraphicsDevice::gl_index_type_size(index_format);
 
@@ -1023,8 +957,6 @@ void GLGraphicsDevice::gl_draw_elements_instanced(
 }
 
 void GLGraphicsDevice::gl_dispatch(uint32_t x, uint32_t y, uint32_t z) {
-    assert(executing);
-    
     // TODO
     assert(false);
 }
@@ -1242,10 +1174,9 @@ std::unique_ptr<engine::graphics::Window> GLGraphicsDevice::create_window(
     }
     glfwShowWindow(glfw_window);
 
-    GLContext gl_context(*this, glfw_window);
     return std::make_unique<GLWindow>(std::move(GLWindow(
         *this,
-        std::move(gl_context)
+        std::move(gl_create_context(glfw_window))
     )));
 }
 

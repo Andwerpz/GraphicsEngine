@@ -21,12 +21,16 @@ inline void test_ui_renderer() {
 
     fs::path font_path = fs::current_path() / "res/fonts/Consolas-Regular.ttf";
     auto font = engine::asset::Font::load_font(font_path);
+    font.get_atlas().export_as_png(fs::current_path() / "atlas.png");
 
     engine::app::Application application;
     auto& task_loop = application.get_task_loop();
     task_loop.add_periodic_task(
         "render_ui",
         [&]() -> void {
+            using namespace engine::graphics;
+            window_render_target->clear(ClearFlags::Color);
+
             auto draw_bordered_rect = [&ui_renderer](
                 float xoff, float yoff,
                 float width, float height
@@ -87,7 +91,7 @@ inline void test_ui_renderer() {
                 ui_renderer.draw_line({sx, sy}, {ex, ey}, 1, {1, 1, 1, 1});
             }
 
-            ui_renderer.draw_text("Bello guys, it's me, sanat dubey", {50, 550}, font);
+            ui_renderer.draw_text("holy moly, is this working?", {50, 550}, font);
             
             ui_renderer.render();
 

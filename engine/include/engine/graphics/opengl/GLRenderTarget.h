@@ -52,6 +52,7 @@ private:
     void bind_texture_impl(uint32_t location, Texture& tex) override;
     void bind_depth_buffer_impl() override;
     void validate_impl() override;
+    void clear(ClearFlags flags) override;
 };
 
 class GLWindowRenderTarget : public engine::graphics::WindowRenderTarget {
@@ -92,6 +93,7 @@ private:
     bool has_depth_buffer() override;
     bool has_output(uint32_t location) override;
     void validate_impl() override;
+    void clear(ClearFlags flags) override;
 };
 
 }

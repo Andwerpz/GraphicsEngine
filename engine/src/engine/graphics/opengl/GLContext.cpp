@@ -1,4 +1,5 @@
 #include <engine/graphics/opengl/GLContext.h>
+#include <engine/graphics/opengl/GLGraphicsDevice.h>
 #include <GLFW/glfw3.h>
 
 namespace engine::graphics::opengl {
@@ -12,7 +13,7 @@ GLContext::GLContext(GLContext&& other) :
 
 GLContext::~GLContext() {
     if(glfw_window != nullptr) {
-        glfwDestroyWindow(glfw_window);
+        device.gl_delete_context(*this);
     }
 }
 

@@ -17,40 +17,47 @@ ProgramInvocation::ProgramInvocation(
     Program& program
 ) : device(device),
     program(program) 
-{
-    // do nothing
+{   
+    ShaderInterface& program_interface = program.get_interface();
+    for(auto i = program_interface.resources.begin(); i != program_interface.resources.end(); i++) {
+        auto location = i->first;
+        ShaderResource& resource_interface = i->second;
+        switch(resource_interface.base_type) {
+            case ShaderResourceType::UniformBuffer: {
+                // generate a default uniform buffer
+                uint64_t buffer_size = resource_interface.uniform_buffer.blockvar.size;
+                auto buffer = device.create_buffer(
+                    buffer_size,
+                    BufferUsage::Uniform,
+                    BufferFrequency::Dynamic
+                );
+                bind_uniform_buffer(location, *buffer);
+                uniform_buffers.emplace_back(std::move(buffer));
+                break;
+            }
+        }
+    }
 }
 
 ProgramInvocation::~ProgramInvocation() = default;
 
-void ProgramInvocation::bind_resource(ShaderResourceLocation location, ResourceBinding resource) {
-    // make sure we haven't validated
-    assert(!validated);
-
-    // can't bind multiple resources to the same location
-    if(bound_resources.contains(location)) {
-        engine::utils::throw_error("resource already bound to location");
-    }
-
-    bound_resources.insert({location, resource});
-}
-
-ProgramInvocation::ResourceBinding& ProgramInvocation::get_resource(ShaderResourceLocation location) {
-    if(!bound_resources.contains(location)) {
-        engine::utils::throw_error("no resource at location");
-    }
-    return bound_resources.at(location);
-}
-
 void ProgramInvocation::bind_uniform_buffer(ShaderResourceLocation location, Buffer& uniform_buffer) {
     // check underlying resource binding
-    if(program.get_interface().get_resource_type(location) != ShaderResourceType::UniformBuffer) {
+    ShaderInterface& program_interface = program.get_interface();
+    if(program_interface.get_resource_type(location) != ShaderResourceType::UniformBuffer) {
         engine::utils::throw_error("bind_uniform_buffer underlying resource descriptor is not UniformBuffer");
     }
 
     // given buffer needs to be of type uniform
     if(uniform_buffer.get_usage() != BufferUsage::Uniform) {
-        engine::utils::throw_error("bind_uniform_buffer buffer needs to have usage Uniform");
+        engine::utils::throw_error("buffer needs to be a uniform buffer");
+    }
+
+    // make sure buffer is large enough
+    ShaderResource& resource_interface = program_interface.get_resource(location);
+    uint64_t required_size = resource_interface.uniform_buffer.blockvar.size;
+    if(uniform_buffer.get_size() < required_size) {
+        engine::utils::throw_error("uniform buffer not large enough, required size : " + std::to_string(required_size));
     }
 
     // bind resource
@@ -82,69 +89,6 @@ Buffer& ProgramInvocation::get_uniform_buffer(ShaderResourceLocation location) {
     }
     assert(resource.uniform_buffer.buffer != nullptr);
     return *resource.uniform_buffer.buffer;
-}
-
-void ProgramInvocation::validate() {
-    // make sure we haven't validated
-    assert(!validated);
-
-    // validate resources
-    ShaderInterface& program_interface = program.get_interface();
-    for(auto i = program_interface.resources.begin(); i != program_interface.resources.end(); i++) {
-        auto location = i->first;
-        ShaderResource& resource_interface = i->second;
-        switch(resource_interface.base_type) {
-            case ShaderResourceType::UniformBuffer: {
-                // see if we need to generate a buffer
-                if(!bound_resources.contains(location)) {
-                    uint64_t buffer_size = resource_interface.uniform_buffer.blockvar.size;
-                    auto buffer = device.create_buffer(
-                        buffer_size,
-                        BufferUsage::Uniform,
-                        BufferFrequency::Dynamic
-                    );
-                    bind_uniform_buffer(location, *buffer);
-                    uniform_buffers.emplace_back(std::move(buffer));
-                }
-
-                // validate resource
-                ResourceBinding& resource = get_resource(location);
-                if(resource.type != ShaderResourceType::UniformBuffer) {
-                    engine::utils::throw_error("resource bound to uniform buffer is not a uniform buffer");
-                }
-                Buffer& buffer = get_uniform_buffer(location);
-                assert(buffer.get_usage() == BufferUsage::Uniform);
-
-                // - make sure buffer is large enough
-                uint64_t buffer_size = resource_interface.uniform_buffer.blockvar.size;
-                if(buffer.get_size() < buffer_size) {
-                    engine::utils::throw_error("uniform buffer not large enough, required size : " + std::to_string(buffer_size));
-                }
-                break;
-            }
-            case ShaderResourceType::SampledTexture: {
-                // make sure sampled texture is bound
-                ResourceBinding& resource = get_resource(location);
-                if(resource.type != ShaderResourceType::SampledTexture) {
-                    engine::utils::throw_error("resource bound to sampled texture is not a sampled texture");
-                }
-
-                // make sure dimension matches
-                ShaderImageType& image_type = resource_interface.sampled_texture.image_type;
-                assert(resource.sampled_texture.texture != nullptr);
-                Texture& tex = *resource.sampled_texture.texture;
-                if(tex.get_dimension() != image_type.dimension) {
-                    engine::utils::throw_error("texture bound to sampled texture has dimension mismatch");
-                }
-                break;
-            }
-            default:
-                assert(false);
-        }
-    }
-
-    validate_impl();
-    validated = true;
 }
 
 template<typename T>
@@ -380,6 +324,35 @@ void ProgramInvocation::set_uniform(UniformToken<glm::mat4> token, glm::mat4 val
     buffer.upload_data(&val, 4 * 4 * 4, token.offset);
 }
 
+void ProgramInvocation::validate() {
+    // make sure we haven't validated
+    assert(!validated);
+
+    validate_impl();
+    validated = true;
+}
+
+void ProgramInvocation::bind_resource(ShaderResourceLocation location, ResourceBinding resource) {
+    bound_resources[location] = resource;
+}
+
+ProgramInvocation::ResourceBinding& ProgramInvocation::get_resource(ShaderResourceLocation location) {
+    if(!bound_resources.contains(location)) {
+        engine::utils::throw_error("no resource at location");
+    }
+    return bound_resources.at(location);
+}
+
+void ProgramInvocation::validate_resource_bindings() {
+    // for now, just make sure that the number of available resource binding slots 
+    // matches the amount of entries in bound_resources
+    ShaderInterface& interface = program.get_interface();
+    assert(bound_resources.size() <= interface.resources.size());
+    if(bound_resources.size() != interface.resources.size()) {
+        engine::utils::throw_error("program invocation has unbound resource");
+    }
+}
+
 
 RenderingProgramInvocation::RenderingProgramInvocation(
     GraphicsDevice& device,
@@ -485,6 +458,7 @@ void RenderingProgramInvocation::draw(
 ) {
     // make sure we have validated
     assert(validated);
+    validate_resource_bindings();
 
     // call subclass impl
     draw_impl(
@@ -500,11 +474,13 @@ void RenderingProgramInvocation::do_depth_testing(bool val) {
 }
 
 void RenderingProgramInvocation::do_clear_color(bool val) {
-    clear_color = val;
+    if(val) clear_flags |= ClearFlags::Color;
+    else clear_flags |= ~ClearFlags::Color;
 }
 
 void RenderingProgramInvocation::do_clear_depth(bool val) {
-    clear_depth = val;
+    if(val) clear_flags |= ClearFlags::Depth;
+    else clear_flags |= ~ClearFlags::Depth;
 }
 
 }

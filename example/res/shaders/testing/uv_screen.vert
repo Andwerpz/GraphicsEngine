@@ -8,6 +8,11 @@ void main() {
         vec2(-1.0,  3.0)
     );
     vec2 pos = positions[gl_VertexID];
-    uv = pos * 0.5 + 0.5;
+
+    uv = vec2(
+        pos.x * 0.5 + 0.5,
+        0.5 - pos.y * 0.5
+    );
+
     gl_Position = vec4(pos, 0.0, 1.0);
 }

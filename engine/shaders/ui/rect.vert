@@ -2,10 +2,13 @@
 
 layout (location = 0) in mat4 model;
 layout (location = 4) in vec4 color;
+layout (location = 5) in vec4 uv;   // packed min xy, max xy
+layout (location = 6) in vec4 info; 
 
 layout (location = 0) out vec2 frag_pos;
 layout (location = 1) out vec2 frag_uv;
 layout (location = 2) out vec4 frag_color;
+layout (location = 3) out vec4 frag_info;
 
 layout (binding = 0) uniform Camera {
     mat4 projection;
@@ -24,6 +27,7 @@ void main() {
     vec2 pos = vertices[gl_VertexID];
     gl_Position = camera.projection * model * vec4(pos, 0.0, 1.0);
     frag_pos = (model * vec4(pos, 0.0, 1.0)).xy;
-    frag_uv = pos;
+    frag_uv = mix(uv.xy, uv.zw, pos);
     frag_color = color;
+    frag_info = info;
 }

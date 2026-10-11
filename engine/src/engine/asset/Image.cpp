@@ -4,6 +4,7 @@
 #include <cassert>
 #include <memory>
 #include <cstring>
+#include <iostream>
 
 #include <stb_image.h>
 #include <stb_image_write.h>

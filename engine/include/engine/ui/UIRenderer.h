@@ -7,9 +7,13 @@
 #include <engine/graphics/RenderTarget.h>
 #include <engine/graphics/Program.h>
 #include <engine/graphics/ProgramInvocation.h>
+#include <engine/graphics/Shader.h>
+#include <engine/graphics/Texture.h>
+#include <engine/graphics/Sampler.h>
+#include <engine/graphics/Buffer.h>
+
 #include <engine/asset/Font.h>
 #include <engine/asset/Image.h>
-#include <engine/graphics/Texture.h>
 
 namespace engine::ui {
 
@@ -45,6 +49,7 @@ class UIRenderer {
     using RenderingProgramInvocation = engine::graphics::RenderingProgramInvocation;
     using Buffer = engine::graphics::Buffer;
     using Texture = engine::graphics::Texture;
+    using Sampler = engine::graphics::Sampler;
     using Font = engine::asset::Font;
     using Image = engine::asset::Image;
 
@@ -83,7 +88,6 @@ public:
         Font& font
     );
 
-    // void draw_text();
     // void draw_blur();
     // void draw_drop_shadow();
 
@@ -136,11 +140,16 @@ private:
     >;
     std::vector<Command> commands;
 
-    // resources to render primitives
+    // rectangle rendering pipeline
     const uint64_t INSTANCE_BUFFER_SIZE = (1 << 16);
+    const uint64_t INSTANCE_SIZE = sizeof(float) * 28;
     std::unique_ptr<Buffer> instance_buffer;
     std::unique_ptr<RenderingProgram> rect_program;
     std::unique_ptr<RenderingProgramInvocation> rect_invocation;
+
+    // default texture stuff to bind when nothing else is specified
+    std::unique_ptr<Texture> default_texture;
+    std::unique_ptr<Sampler> default_sampler;
 
     // mapping asset_id -> cached texture
     std::map<uint64_t, std::unique_ptr<Texture>> asset_textures;

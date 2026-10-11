@@ -14,6 +14,42 @@ namespace engine::graphics {
 
 class Window;
 
+enum class ClearFlags : uint64_t {
+    None    = 0,
+    Color   = 1 << 0,
+    Depth   = 1 << 1,
+};
+
+constexpr ClearFlags operator|(ClearFlags lhs, ClearFlags rhs) {
+    return static_cast<ClearFlags>(
+        static_cast<uint64_t>(lhs) | static_cast<uint64_t>(rhs)
+    );
+}
+constexpr ClearFlags operator&(ClearFlags lhs, ClearFlags rhs) {
+    return static_cast<ClearFlags>(
+        static_cast<uint64_t>(lhs) & static_cast<uint64_t>(rhs)
+    );
+}
+constexpr ClearFlags operator^(ClearFlags lhs, ClearFlags rhs) {
+    return static_cast<ClearFlags>(
+        static_cast<uint64_t>(lhs) ^ static_cast<uint64_t>(rhs)
+    );
+}
+constexpr ClearFlags operator~(ClearFlags flags) {
+    return static_cast<ClearFlags>(
+        ~static_cast<uint64_t>(flags)
+    );
+}
+constexpr ClearFlags& operator|=(ClearFlags& lhs, ClearFlags rhs) {
+    return lhs = lhs | rhs;
+}
+constexpr ClearFlags& operator&=(ClearFlags& lhs, ClearFlags rhs) {
+    return lhs = lhs & rhs;
+}
+constexpr ClearFlags& operator^=(ClearFlags& lhs, ClearFlags rhs) {
+    return lhs = lhs ^ rhs;
+}
+
 class RenderTarget {
 public:
     // get dimensions
@@ -33,6 +69,10 @@ public:
     bool is_validated() {
         return validated;
     }
+
+    // clears the configured attachments
+    // can only be done after validating
+    virtual void clear(ClearFlags flags) = 0;
 
 protected:
     virtual void validate_impl() = 0;

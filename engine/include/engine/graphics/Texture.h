@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <math.h>
+#include <atomic>
 
 namespace engine::asset {
 class Image;
@@ -40,6 +41,11 @@ protected:
         uint32_t mip_levels
     );
 
+    inline static std::atomic<uint64_t> next_texture_id{1};
+
+    // unique ID assigned to every texture, texture_id = 0 is invalid
+    uint64_t texture_id;
+
     // what sort of texture is this
     TextureDimension type;
 
@@ -55,6 +61,10 @@ protected:
     uint32_t mip_levels;
 
 public:
+    uint64_t get_texture_id() const {
+        return texture_id;
+    }
+
     TextureDimension get_dimension() const {
         return type;
     }

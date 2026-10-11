@@ -45,6 +45,18 @@ void GLTextureRenderTarget::validate_impl() {
     }
 }
 
+void GLTextureRenderTarget::clear(ClearFlags flags) {
+    if(flags == ClearFlags::None) return;
+    GLenum gl_clear_flags = 
+        ((flags & ClearFlags::Color) != ClearFlags::None ? GL_COLOR_BUFFER_BIT : 0) |
+        ((flags & ClearFlags::Depth) != ClearFlags::None ? GL_DEPTH_BUFFER_BIT : 0)
+    ;
+
+    device.gl_set_context(gl_framebuffer.get_context());
+    device.gl_bind_framebuffer(gl_framebuffer);
+    glClear(gl_clear_flags);
+}
+
 
 GLWindowRenderTarget::GLWindowRenderTarget(
     GLGraphicsDevice& device,
@@ -69,6 +81,18 @@ bool GLWindowRenderTarget::has_output(uint32_t location) {
 
 void GLWindowRenderTarget::validate_impl() {
     // do nothing
+}
+
+void GLWindowRenderTarget::clear(ClearFlags flags) {
+    if(flags == ClearFlags::None) return;
+    GLenum gl_clear_flags = 
+        ((flags & ClearFlags::Color) != ClearFlags::None ? GL_COLOR_BUFFER_BIT : 0) |
+        ((flags & ClearFlags::Depth) != ClearFlags::None ? GL_DEPTH_BUFFER_BIT : 0)
+    ;
+
+    device.gl_set_context(gl_framebuffer.get_context());
+    device.gl_bind_framebuffer(gl_framebuffer);
+    glClear(gl_clear_flags);
 }
 
 }
