@@ -57,23 +57,12 @@ public:
     // drains all errors and prints them out
     void gl_get_error();
 
-    // -- CONTEXT MANAGEMENT --
-    // sets context to the headless context
-    void gl_reset_context();
-    void gl_set_context(GLContext& context);
-
-    // gets the currently bound context
-    GLContext& gl_get_context();
-
-    // deletes the given context
-    // if the given context is currently the one bound, binds the headless context first
-    void gl_delete_context(GLContext& context);
-
     // -- RESOURCES --
     // these are for creating, managing, and deleting resources
     // they can be ran whenever, inside or outside of an execution context
 
-    // resource creation
+    // context independent resources
+    // all of these resources should get created in the headless context
     GLBuffer gl_create_buffer(
         uint64_t size, 
         BufferUsage usage,
@@ -96,15 +85,10 @@ public:
         SamplerAddressMode address_v,
         SamplerAddressMode address_w
     );
-    GLVertexArray gl_create_vertex_array();
     GLRenderbuffer gl_create_renderbuffer(
         TextureFormat format,
         uint32_t width,
         uint32_t height
-    );
-    GLFramebuffer gl_create_framebuffer();
-    GLFramebuffer gl_create_window_framebuffer(
-        GLWindow& window
     );
     GLShader gl_create_shader(
         ShaderStage stage, 
@@ -118,29 +102,42 @@ public:
     );
     GLComputeProgram gl_create_compute_program(GLShader& compute_shader);
 
+    // context local resources
+    // these resources are valid only within a specific context
+    GLVertexArray gl_create_vertex_array(
+        GLContext& context
+    );
+    GLFramebuffer gl_create_framebuffer(
+        GLContext& context
+    );
+    GLFramebuffer gl_create_window_framebuffer(
+        GLWindow& window
+    );
+
     // resource deletion
-    void gl_delete_buffer(GLuint handle);
-    void gl_delete_texture(GLuint handle);
-    void gl_delete_sampler(GLuint handle);
-    void gl_delete_vertex_array(GLuint handle);
-    void gl_delete_renderbuffer(GLuint handle);
-    void gl_delete_framebuffer(GLuint handle);
-    void gl_delete_shader(GLuint handle);
-    void gl_delete_rendering_program(GLuint handle);
-    void gl_delete_compute_program(GLuint handle);
+    void gl_delete_buffer(GLBuffer& buffer);
+    void gl_delete_texture(GLTexture& texture);
+    void gl_delete_sampler(GLSampler& sampler);
+    void gl_delete_renderbuffer(GLRenderbuffer& renderbuffer);
+    void gl_delete_shader(GLShader& shader);
+    void gl_delete_rendering_program(GLRenderingProgram& program);
+    void gl_delete_compute_program(GLComputeProgram& program);
+    void gl_delete_vertex_array(GLVertexArray& vertex_array);
+    void gl_delete_framebuffer(GLFramebuffer& framebuffer);
 
     // -- EXECUTION --
     // resource binding
-    void gl_bind_buffer(uint32_t slot, GLBuffer& buf);
-    void gl_bind_sampler(uint32_t slot, GLSampler& sampler);
-    void gl_bind_texture(uint32_t slot, GLTexture& tex);
+    void gl_bind_buffer(GLContext& context, uint32_t slot, GLBuffer& buf);
+    void gl_bind_sampler(GLContext& context, uint32_t slot, GLSampler& sampler);
+    void gl_bind_texture(GLContext& context, uint32_t slot, GLTexture& tex);
+    void gl_bind_rendering_program(GLContext& context, GLRenderingProgram& program);
+    void gl_bind_compute_program(GLContext& context, GLComputeProgram& program);
     void gl_bind_vertex_array(GLVertexArray& va);
     void gl_bind_framebuffer(GLFramebuffer& fb);
-    void gl_bind_rendering_program(GLRenderingProgram& program);
-    void gl_bind_compute_program(GLComputeProgram& program);
 
     // misc state
     void gl_set_viewport(
+        GLContext& context,
         float min_x,
         float min_y,
         float width,
@@ -149,6 +146,7 @@ public:
         float max_z = 1.0
     );
     void gl_set_scissor(
+        GLContext& context,
         int32_t min_x,
         int32_t min_y,
         uint32_t width,
@@ -157,26 +155,35 @@ public:
 
     // execution
     void gl_draw_arrays(
+        GLContext& context,
         uint32_t primitive_count,
         uint32_t first_primitive = 0
     );
     void gl_draw_elements(
+        GLContext& context,
         uint32_t primitive_count,
         uint32_t first_primitive = 0
     );
     void gl_draw_arrays_instanced(
+        GLContext& context,
         uint32_t primitive_count, 
         uint32_t instance_count,
         uint32_t first_primitive = 0,
         uint32_t first_instance = 0
     );
     void gl_draw_elements_instanced(
+        GLContext& context,
         uint32_t primitive_count, 
         uint32_t instance_count,
         uint32_t first_primitive = 0,
         uint32_t first_instance = 0
     );
-    void gl_dispatch(uint32_t x, uint32_t y = 1, uint32_t z = 1);
+    void gl_dispatch(
+        GLContext& context,
+        uint32_t x, 
+        uint32_t y = 1, 
+        uint32_t z = 1
+    );
     // void gl_barrier(...);
 
     // -- EXTERNAL API --
@@ -258,15 +265,28 @@ private:
         std::vector<std::optional<GLTexture*>> bound_textures;
         std::vector<std::optional<GLSampler*>> bound_samplers;
 
-        std::optional<GLVertexArray*> bound_vertex_array;
-        std::optional<GLFramebuffer*> bound_framebuffer;
-
         std::optional<GLRenderingProgram*> bound_rendering_program;
         std::optional<GLComputeProgram*> bound_compute_program;
+
+        std::optional<GLVertexArray*> bound_vertex_array;
+        std::optional<GLFramebuffer*> bound_framebuffer;
 
         // TODO store viewport and scissor state as well
     };
     std::map<GLFWwindow*, GLContextState> context_state;
+
+    // sets context to the headless context
+    void gl_reset_context();
+
+    // sets the currently bound context
+    void gl_set_context(GLContext& context);
+
+    // gets the currently bound context
+    GLContext& gl_get_context();
+
+    // deletes the given context
+    // if the given context is currently the one bound, binds the headless context in its place
+    void gl_delete_context(GLContext& context);
 
     // creates a GLContext and does whatever other bookeeping required 
     GLContext gl_create_context(GLFWwindow* glfw_window);

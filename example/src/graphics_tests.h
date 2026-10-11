@@ -1,11 +1,13 @@
 #pragma once
-#include "utils.h"
+#include <algorithm>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
 #include <engine/asset/Font.h>
+
+#include "utils.h"
 
 // make sure that setting uniforms works
 // should render a screen that oscillates between black and white
@@ -518,7 +520,7 @@ inline void test_render_target() {
         1       // mip levels
     );
 
-    auto cube_render_target = device.create_render_target(512, 512);
+    auto cube_render_target = device.create_render_target(cube_texture->get_width(), cube_texture->get_height());
     cube_render_target->bind_texture(0, *cube_texture);
     cube_render_target->bind_depth_buffer();
     cube_render_target->validate();
@@ -572,14 +574,13 @@ inline void test_render_target() {
             engine::graphics::VertexInputRate::Vertex,
             engine::graphics::VertexFormat::Float32x2
         );
-        invocation->bind_sampled_texture(
-            {0, 1},
-            *cube_texture,
-            *sampler
-        );
-
         invocation->validate();
     }
+    invocation->bind_sampled_texture(
+        {0, 1},
+        *cube_texture,
+        *sampler
+    );
 
     auto cube_projection_token = cube_invocation->get_uniform<glm::mat4>("camera.projection");
     auto cube_view_token = cube_invocation->get_uniform<glm::mat4>("camera.view");
@@ -589,15 +590,16 @@ inline void test_render_target() {
 
     while(true) {
         float time = std::chrono::duration<float>(std::chrono::steady_clock::now().time_since_epoch()).count();
-        float angle = time * 1.0f; // radians/sec
+        float angle1 = time * 1.5f; // radians/sec
+        float angle2 = time * 0.2f;
         float radius = 2.0f;
         float height = 1.0f;
-        glm::vec3 camera_position(
-            radius * std::cos(angle),
-            height,
-            radius * std::sin(angle)
-        );
 
+        glm::vec3 cube_camera_position(
+            radius * std::cos(angle1),
+            height,
+            radius * std::sin(angle1)
+        );
         glm::mat4 cube_projection = glm::perspective(
             glm::radians(90.0f),
             512 / static_cast<float>(512),
@@ -605,11 +607,16 @@ inline void test_render_target() {
             100.0f
         );
         glm::mat4 cube_view = glm::lookAt(
-            camera_position,
+            cube_camera_position,
             glm::vec3(0.0f),
             glm::vec3(0.0f, 1.0f, 0.0f)
         );
 
+        glm::vec3 camera_position(
+            radius * std::cos(angle2),
+            height,
+            radius * std::sin(angle2)
+        );
         glm::mat4 projection = glm::perspective(
             glm::radians(90.0f),
             window_width / static_cast<float>(window_height),
@@ -629,6 +636,7 @@ inline void test_render_target() {
         invocation->set_uniform(projection_token, projection);
         invocation->set_uniform(view_token, view);
         invocation->draw(12);
+        
         device.present(*window);
 
         dynamic_cast<engine::graphics::opengl::GLGraphicsDevice&>(device).gl_get_error();

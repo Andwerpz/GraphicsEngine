@@ -111,7 +111,7 @@ public:
     // data needs to point to some underlying memory of size get_size(mip_level)
     // overwrites memory pointed to by data to be texture data 
     virtual void retrieve_data(
-        const void* data,
+        void* data,
         uint32_t mip_level = 0,
         uint32_t cube_face = 0
     ) = 0;

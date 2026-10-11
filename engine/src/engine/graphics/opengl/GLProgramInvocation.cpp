@@ -56,23 +56,25 @@ void GLRenderingProgramInvocation::validate_impl() {
         // }
     }
 
-    // bind render target context
+    // get render target context
+    GLContext* context = nullptr;
     assert(render_target.has_value());
     assert(render_target.value().get().is_validated());
     if(dynamic_cast<GLTextureRenderTarget*>(&(render_target.value().get())) != nullptr) {
         // render in headless context
         GLTextureRenderTarget& gl_target = dynamic_cast<GLTextureRenderTarget&>(render_target.value().get());
-        gl_device.gl_reset_context();
+        context = &gl_target.get_framebuffer().get_context();
     }
     else if(dynamic_cast<GLWindowRenderTarget*>(&(render_target.value().get())) != nullptr) {
         // render in window context
         GLWindowRenderTarget& gl_target = dynamic_cast<GLWindowRenderTarget&>(render_target.value().get());
-        gl_device.gl_set_context(gl_target.get_window().get_context());
+        context = &gl_target.get_framebuffer().get_context();
     }
     else assert(false);
+    assert(context != nullptr);
 
     // create vertex array 
-    gl_vertex_array.emplace(gl_device.gl_create_vertex_array());
+    gl_vertex_array.emplace(gl_device.gl_create_vertex_array(*context));
     for(const auto& [location, binding] : attribute_bindings) {
         assert(dynamic_cast<GLBuffer*>(&binding.buffer) != nullptr);
         GLBuffer& gl_buffer = dynamic_cast<GLBuffer&>(binding.buffer);
@@ -128,19 +130,21 @@ void GLRenderingProgramInvocation::draw_impl(
     uint32_t first_instance
 ) {
     // bind render target
+    GLContext* context;
     if(dynamic_cast<GLTextureRenderTarget*>(&(render_target.value().get())) != nullptr) {
         // render in headless context
         GLTextureRenderTarget& gl_target = dynamic_cast<GLTextureRenderTarget&>(render_target.value().get());
-        gl_device.gl_reset_context();
         gl_device.gl_bind_framebuffer(gl_target.get_framebuffer());
+        context = &gl_target.get_framebuffer().get_context();
     }
     else if(dynamic_cast<GLWindowRenderTarget*>(&(render_target.value().get())) != nullptr) {
         // render in window context
         GLWindowRenderTarget& gl_target = dynamic_cast<GLWindowRenderTarget&>(render_target.value().get());
-        gl_device.gl_set_context(gl_target.get_window().get_context());
         gl_device.gl_bind_framebuffer(gl_target.get_framebuffer());
+        context = &gl_target.get_framebuffer().get_context();
     }
     else assert(false);
+    assert(context != nullptr);
 
     // bind vertex array
     assert(gl_vertex_array.has_value());
@@ -163,7 +167,7 @@ void GLRenderingProgramInvocation::draw_impl(
                 assert(resource.uniform_buffer.buffer != nullptr);
                 assert(dynamic_cast<GLBuffer*>(resource.uniform_buffer.buffer));
                 GLBuffer& gl_buffer = dynamic_cast<GLBuffer&>(*resource.uniform_buffer.buffer);
-                gl_device.gl_bind_buffer(binding, gl_buffer);
+                gl_device.gl_bind_buffer(*context, binding, gl_buffer);
                 break;
             }
             case ShaderResourceType::SampledTexture: {
@@ -173,8 +177,8 @@ void GLRenderingProgramInvocation::draw_impl(
                 assert(dynamic_cast<GLSampler*>(resource.sampled_texture.sampler));
                 GLTexture& gl_texture = dynamic_cast<GLTexture&>(*resource.sampled_texture.texture);
                 GLSampler& gl_sampler = dynamic_cast<GLSampler&>(*resource.sampled_texture.sampler);
-                gl_device.gl_bind_texture(binding, gl_texture);
-                gl_device.gl_bind_sampler(binding, gl_sampler);
+                gl_device.gl_bind_texture(*context, binding, gl_texture);
+                gl_device.gl_bind_sampler(*context, binding, gl_sampler);
                 break;
             }
             default:
@@ -182,13 +186,15 @@ void GLRenderingProgramInvocation::draw_impl(
         }
     }
 
-    // misc settings
+    // misc settings 
+    // TODO move these raw OpenGL calls into GLGraphicsDevice where the context is managed
     glEnable(GL_BLEND);
     glBlendFuncSeparate(
         GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA,
         GL_ONE, GL_ONE_MINUS_SRC_ALPHA
     );
     gl_device.gl_set_viewport(
+        *context, 
         0, 0, 
         render_target.value().get().get_width(),
         render_target.value().get().get_height()
@@ -200,16 +206,18 @@ void GLRenderingProgramInvocation::draw_impl(
     render_target.value().get().clear(clear_flags);
 
     // execute program
-    gl_device.gl_bind_rendering_program(gl_program);
+    gl_device.gl_bind_rendering_program(*context, gl_program);
     if(gl_vertex_array.value().has_index_buffer()) {
         if(nr_instances == 1 && first_instance == 0) {
             gl_device.gl_draw_elements(
+                *context, 
                 nr_primitives,
                 first_primitive
             );
         }
         else {
             gl_device.gl_draw_elements_instanced(
+                *context, 
                 nr_primitives,
                 nr_instances,
                 first_primitive,
@@ -220,12 +228,14 @@ void GLRenderingProgramInvocation::draw_impl(
     else {
         if(nr_instances == 1 && first_instance == 0) {
             gl_device.gl_draw_arrays(
+                *context, 
                 nr_primitives,
                 first_primitive
             );
         }
         else {
             gl_device.gl_draw_arrays_instanced(
+                *context, 
                 nr_primitives,
                 nr_instances,
                 first_primitive,

@@ -13,6 +13,45 @@
 
 namespace engine::graphics::opengl {
 
+void APIENTRY gl_debug_callback(
+    GLenum source,
+    GLenum type,
+    GLuint id,
+    GLenum severity,
+    GLsizei length,
+    const GLchar* message,
+    const void* user_param
+) { 
+    // ignore notification level messages
+    if(severity == GL_DEBUG_SEVERITY_NOTIFICATION) {
+        return;
+    }
+
+    const char* severity_str = "";
+    switch(severity) {
+        case GL_DEBUG_SEVERITY_HIGH:
+            severity_str = "HIGH";
+            break;
+        case GL_DEBUG_SEVERITY_MEDIUM:
+            severity_str = "MEDIUM";
+            break;
+        case GL_DEBUG_SEVERITY_LOW:
+            severity_str = "LOW";
+            break;
+        case GL_DEBUG_SEVERITY_NOTIFICATION:
+            severity_str = "NOTIFICATION";
+            break;
+        default:
+            assert(false);
+    }
+
+    std::cerr
+        << "[OpenGL " << severity_str << "] "
+        << "ID=" << id
+        << " Type=0x" << std::hex << type << std::dec
+        << ": " << message << '\n';
+}
+
 GLGraphicsDevice::GLGraphicsDevice() {
     glfwSetErrorCallback([](int error, const char* description) {
         std::cerr << "GLFW error " << error << ": " << description << std::endl;
@@ -57,6 +96,10 @@ GLGraphicsDevice::GLGraphicsDevice() {
     // set active context to hidden window
     headless_context.emplace(gl_create_context(glfw_window));
     gl_reset_context();
+
+    glEnable(GL_DEBUG_OUTPUT);
+    glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+    glDebugMessageCallback(gl_debug_callback, nullptr);
 }
 
 // -- UTILS --
@@ -214,9 +257,18 @@ void GLGraphicsDevice::gl_reset_context() {
 void GLGraphicsDevice::gl_set_context(GLContext& context) {
     assert(context.get_glfw_window() != nullptr);
     assert(&context.device == this);
-    if(bound_context == &context) return;
+
+    // see if we can skip setting context
+    if(bound_context == &context) {
+        assert(glfwGetCurrentContext() == context.get_glfw_window());
+        return;
+    }
+
+    // set context
     glfwMakeContextCurrent(context.get_glfw_window());
     bound_context = &context;
+
+    std::cout << "SET CONTEXT : " << (uint64_t) context.get_glfw_window() << std::endl;
 }
 
 GLContext& GLGraphicsDevice::gl_get_context() {
@@ -238,6 +290,11 @@ void GLGraphicsDevice::gl_delete_context(GLContext& context) {
 }
 
 GLContext GLGraphicsDevice::gl_create_context(GLFWwindow* glfw_window) {
+    // need to make new context current to grab capabilities
+    GLFWwindow* old_glfw_window = nullptr;
+    if(bound_context != nullptr) {
+        old_glfw_window = bound_context->get_glfw_window();
+    }
     glfwMakeContextCurrent(glfw_window);
 
     // build context state
@@ -253,10 +310,11 @@ GLContext GLGraphicsDevice::gl_create_context(GLFWwindow* glfw_window) {
     context_state.emplace(glfw_window, state);
 
     // re-bind originally bound context
-    if(bound_context != nullptr) {
-        gl_set_context(*bound_context);
+    if(old_glfw_window != nullptr) {
+        glfwMakeContextCurrent(old_glfw_window);
     }
 
+    std::cout << "CREATE CONTEXT : " << (uint64_t) glfw_window << std::endl;
     return std::move(GLContext(*this, glfw_window));
 }
 
@@ -279,6 +337,7 @@ GLBuffer GLGraphicsDevice::gl_create_buffer(
     }
 
     // create buffer
+    gl_reset_context();
     GLuint handle;
     glCreateBuffers(1, &handle);
     
@@ -338,6 +397,7 @@ GLTexture GLGraphicsDevice::gl_create_texture(
     }
 
     // create texture + allocate storage
+    gl_reset_context();
     GLuint handle;
     GLint gl_internal_format = GLGraphicsDevice::gl_internal_format(format);
     switch(type) {
@@ -380,6 +440,7 @@ GLSampler GLGraphicsDevice::gl_create_sampler(
     SamplerAddressMode address_w
 ) {
     // create sampler
+    gl_reset_context();
     GLuint handle;
     glCreateSamplers(1, &handle);
 
@@ -471,21 +532,13 @@ GLSampler GLGraphicsDevice::gl_create_sampler(
     return sampler;
 }
 
-GLVertexArray GLGraphicsDevice::gl_create_vertex_array() {
-    // create vertex array 
-    GLuint handle;
-    glCreateVertexArrays(1, &handle);
-
-    GLVertexArray va(*this, *bound_context, handle);
-    return va;
-}
-
 GLRenderbuffer GLGraphicsDevice::gl_create_renderbuffer(
     TextureFormat format,
     uint32_t width,
     uint32_t height
 ) {
     // create renderbuffer
+    gl_reset_context();
     GLuint handle;
     glCreateRenderbuffers(1, &handle);
 
@@ -506,28 +559,13 @@ GLRenderbuffer GLGraphicsDevice::gl_create_renderbuffer(
     return rb;
 }
 
-GLFramebuffer GLGraphicsDevice::gl_create_framebuffer() {
-    // create framebuffer
-    GLuint handle;
-    glCreateFramebuffers(1, &handle);
-
-    GLFramebuffer fb(*this, *bound_context, handle);
-    return fb;
-}
-
-GLFramebuffer GLGraphicsDevice::gl_create_window_framebuffer(
-    GLWindow& window
-) {
-    // rendering to framebuffer 0 renders to the window in the bound context
-    return GLFramebuffer(*this, window.get_context(), 0);
-}
-
 GLShader GLGraphicsDevice::gl_create_shader(
     ShaderStage stage, 
     std::string source_code,
     std::vector<uint32_t> spirv_code
 ) {
     // create shader
+    gl_reset_context();
     GLenum gl_shader_type = GLGraphicsDevice::gl_shader_type(stage);
     GLuint handle = glCreateShader(gl_shader_type);
 
@@ -589,6 +627,7 @@ GLRenderingProgram GLGraphicsDevice::gl_create_rendering_program(
     }
 
     // create program
+    gl_reset_context();
     GLuint handle = glCreateProgram();
 
     // attach shaders and link
@@ -625,6 +664,7 @@ GLComputeProgram GLGraphicsDevice::gl_create_compute_program(
     }
 
     // create program
+    gl_reset_context();
     GLuint handle = glCreateProgram();
 
     // attach shaders and link
@@ -649,52 +689,97 @@ GLComputeProgram GLGraphicsDevice::gl_create_compute_program(
     return program;
 }
 
+GLVertexArray GLGraphicsDevice::gl_create_vertex_array(GLContext& context) {
+    // create vertex array 
+    gl_set_context(context);
+    GLuint handle;
+    glCreateVertexArrays(1, &handle);
+
+    std::cout
+        << "Created VAO: " << handle
+        << ", is vertex array: "
+        << (glIsVertexArray(handle) == GL_TRUE)
+        << ", context : " << (uint64_t) glfwGetCurrentContext() << std::endl;
+
+    GLVertexArray va(*this, *bound_context, handle);
+    return va;
+}
+
+GLFramebuffer GLGraphicsDevice::gl_create_framebuffer(GLContext& context) {
+    // create framebuffer
+    gl_set_context(context);
+    GLuint handle;
+    glCreateFramebuffers(1, &handle);
+
+    GLFramebuffer fb(*this, *bound_context, handle);
+    return fb;
+}
+
+GLFramebuffer GLGraphicsDevice::gl_create_window_framebuffer(
+    GLWindow& window
+) {
+    // rendering to framebuffer 0 renders to the window in the bound context
+    return GLFramebuffer(*this, window.get_context(), 0);
+}
+
 
 // -- RESOURCE DELETION --
-void GLGraphicsDevice::gl_delete_buffer(GLuint gl_handle) {
-    glDeleteBuffers(1, &gl_handle);
+void GLGraphicsDevice::gl_delete_buffer(GLBuffer& buffer) {
+    assert(buffer.handle != 0);
+    glDeleteBuffers(1, &buffer.handle);
 }
 
-void GLGraphicsDevice::gl_delete_texture(GLuint gl_handle) {
-    glDeleteTextures(1, &gl_handle);
+void GLGraphicsDevice::gl_delete_texture(GLTexture& texture) {
+    assert(texture.handle != 0);
+    glDeleteTextures(1, &texture.handle);
 }
 
-void GLGraphicsDevice::gl_delete_sampler(GLuint gl_handle) {
-    glDeleteSamplers(1, &gl_handle);
+void GLGraphicsDevice::gl_delete_sampler(GLSampler& sampler) {
+    assert(sampler.handle != 0);
+    glDeleteSamplers(1, &sampler.handle);
 }
 
-void GLGraphicsDevice::gl_delete_vertex_array(GLuint gl_handle) {
-    glDeleteVertexArrays(1, &gl_handle);
+void GLGraphicsDevice::gl_delete_renderbuffer(GLRenderbuffer& renderbuffer) {
+    assert(renderbuffer.handle != 0);
+    glDeleteRenderbuffers(1, &renderbuffer.handle);
 }
 
-void GLGraphicsDevice::gl_delete_renderbuffer(GLuint gl_handle) {
-    glDeleteRenderbuffers(1, &gl_handle);
+void GLGraphicsDevice::gl_delete_shader(GLShader& shader) {
+    assert(shader.handle != 0);
+    glDeleteShader(shader.handle);
 }
 
-void GLGraphicsDevice::gl_delete_framebuffer(GLuint gl_handle) {
-    glDeleteFramebuffers(1, &gl_handle);
+void GLGraphicsDevice::gl_delete_rendering_program(GLRenderingProgram& program) {
+    assert(program.handle != 0);
+    glDeleteProgram(program.handle);
 }
 
-void GLGraphicsDevice::gl_delete_shader(GLuint gl_handle) {
-    glDeleteShader(gl_handle);
+void GLGraphicsDevice::gl_delete_compute_program(GLComputeProgram& program) {
+    assert(program.handle != 0);
+    glDeleteProgram(program.handle);
 }
 
-void GLGraphicsDevice::gl_delete_rendering_program(GLuint gl_handle) {
-    glDeleteProgram(gl_handle);
+void GLGraphicsDevice::gl_delete_vertex_array(GLVertexArray& vertex_array) {
+    assert(vertex_array.handle != 0);
+    gl_set_context(vertex_array.get_context());
+    glDeleteVertexArrays(1, &vertex_array.handle);
 }
 
-void GLGraphicsDevice::gl_delete_compute_program(GLuint gl_handle) {
-    glDeleteProgram(gl_handle);
+void GLGraphicsDevice::gl_delete_framebuffer(GLFramebuffer& framebuffer) {
+    assert(framebuffer.handle != 0);
+    gl_set_context(framebuffer.get_context());
+    glDeleteFramebuffers(1, &framebuffer.handle);
 }
 
 
 // -- EXECUTION --
-void GLGraphicsDevice::gl_bind_buffer(uint32_t slot, GLBuffer& buf) {
+void GLGraphicsDevice::gl_bind_buffer(GLContext& context, uint32_t slot, GLBuffer& buf) {
     assert(&buf.device == this);
+    gl_set_context(context);
+    GLContextState& state = gl_get_context_state();
 
     // make sure slot is in range
     // should only be able to bind uniform buffers and storage buffers
-    GLContextState& state = gl_get_context_state();
     if(buf.get_usage() == BufferUsage::Uniform) {
         if(slot >= state.MAX_UNIFORM_BUFFER_BINDINGS) {
             engine::utils::throw_error("bind_buffer slot out of range, should be less than " + std::to_string(state.MAX_UNIFORM_BUFFER_BINDINGS));
@@ -726,11 +811,12 @@ void GLGraphicsDevice::gl_bind_buffer(uint32_t slot, GLBuffer& buf) {
     glBindBufferBase(gl_target, slot, buf.get_handle());
 }
 
-void GLGraphicsDevice::gl_bind_texture(uint32_t slot, GLTexture& tex) {
+void GLGraphicsDevice::gl_bind_texture(GLContext& context, uint32_t slot, GLTexture& tex) {
     assert(&tex.device == this);
+    gl_set_context(context);
+    GLContextState& state = gl_get_context_state();
 
     // make sure slot is in range
-    GLContextState& state = gl_get_context_state();
     if(slot >= state.MAX_TEXTURE_BINDINGS) {
         engine::utils::throw_error("bind_texture slot out of range, should be less than " + std::to_string(state.MAX_TEXTURE_BINDINGS));
     }
@@ -740,11 +826,12 @@ void GLGraphicsDevice::gl_bind_texture(uint32_t slot, GLTexture& tex) {
     glBindTextureUnit(slot, tex.get_handle());
 }
 
-void GLGraphicsDevice::gl_bind_sampler(uint32_t slot, GLSampler& sampler) {
+void GLGraphicsDevice::gl_bind_sampler(GLContext& context, uint32_t slot, GLSampler& sampler) {
     assert(&sampler.device == this);
+    gl_set_context(context);
+    GLContextState& state = gl_get_context_state();
 
     // make sure slot is in range and unbound
-    GLContextState& state = gl_get_context_state();
     if(slot >= state.MAX_TEXTURE_BINDINGS) {
         engine::utils::throw_error("bind_sampler slot out of range, should be less than " + std::to_string(state.MAX_TEXTURE_BINDINGS));
     }
@@ -754,36 +841,9 @@ void GLGraphicsDevice::gl_bind_sampler(uint32_t slot, GLSampler& sampler) {
     glBindSampler(slot, sampler.get_handle());
 }
 
-void GLGraphicsDevice::gl_bind_vertex_array(GLVertexArray& va) {
-    assert(&va.device == this);
-    GLContextState& state = gl_get_context_state();
-
-    // make sure context of this vertex array matches currently bound context
-    assert(bound_context != nullptr);
-    if(!(va.get_context() == *bound_context)) {
-        engine::utils::throw_error("vertex array context does not match currently bound context");
-    }
-
-    glBindVertexArray(va.get_handle());
-    state.bound_vertex_array = &va;
-}
-
-void GLGraphicsDevice::gl_bind_framebuffer(GLFramebuffer& fb) {
-    assert(&fb.device == this);
-    GLContextState& state = gl_get_context_state();
-
-    // make sure context of this framebuffer matches currently bound context
-    assert(bound_context != nullptr);
-    if(!(fb.get_context() == *bound_context)) {
-        engine::utils::throw_error("framebuffer context does not match currently bound context");
-    }
-
-    glBindFramebuffer(GL_FRAMEBUFFER, fb.get_handle());
-    state.bound_framebuffer = &fb;
-}
-
-void GLGraphicsDevice::gl_bind_rendering_program(GLRenderingProgram& program) {
+void GLGraphicsDevice::gl_bind_rendering_program(GLContext& context, GLRenderingProgram& program) {
     assert(&program.device == this);
+    gl_set_context(context);
     GLContextState& state = gl_get_context_state();
 
     glUseProgram(program.get_handle());
@@ -791,8 +851,9 @@ void GLGraphicsDevice::gl_bind_rendering_program(GLRenderingProgram& program) {
     state.bound_compute_program = std::nullopt;
 }
 
-void GLGraphicsDevice::gl_bind_compute_program(GLComputeProgram& program) {
+void GLGraphicsDevice::gl_bind_compute_program(GLContext& context, GLComputeProgram& program) {
     assert(&program.device == this);
+    gl_set_context(context);
     GLContextState& state = gl_get_context_state();
 
     glUseProgram(program.get_handle());
@@ -800,7 +861,26 @@ void GLGraphicsDevice::gl_bind_compute_program(GLComputeProgram& program) {
     state.bound_rendering_program = std::nullopt;
 }
 
+void GLGraphicsDevice::gl_bind_vertex_array(GLVertexArray& va) {
+    assert(&va.device == this);
+    gl_set_context(va.get_context());
+    GLContextState& state = gl_get_context_state();
+
+    glBindVertexArray(va.get_handle());
+    state.bound_vertex_array = &va;
+}
+
+void GLGraphicsDevice::gl_bind_framebuffer(GLFramebuffer& fb) {
+    assert(&fb.device == this);
+    gl_set_context(fb.get_context());
+    GLContextState& state = gl_get_context_state();
+
+    glBindFramebuffer(GL_FRAMEBUFFER, fb.get_handle());
+    state.bound_framebuffer = &fb;
+}
+
 void GLGraphicsDevice::gl_set_viewport(
+    GLContext& context,
     float min_x,
     float min_y,
     float width,
@@ -815,6 +895,7 @@ void GLGraphicsDevice::gl_set_viewport(
         engine::utils::throw_error("Viewport min_z must not be greater than max_z");
     }
 
+    gl_set_context(context);
     glViewport(
         min_x, min_y,
         width, height
@@ -823,6 +904,7 @@ void GLGraphicsDevice::gl_set_viewport(
 }
 
 void GLGraphicsDevice::gl_set_scissor(
+    GLContext& context,
     int32_t min_x,
     int32_t min_y,
     uint32_t width,
@@ -837,9 +919,11 @@ void GLGraphicsDevice::gl_set_scissor(
 }
 
 void GLGraphicsDevice::gl_draw_arrays(
+    GLContext& context,
     uint32_t primitive_count,
     uint32_t first_primitive
 ) {
+    gl_set_context(context);
     GLContextState& state = gl_get_context_state();
     assert(state.bound_vertex_array.has_value());
     assert(state.bound_framebuffer.has_value());
@@ -860,9 +944,11 @@ void GLGraphicsDevice::gl_draw_arrays(
 }
 
 void GLGraphicsDevice::gl_draw_elements(
+    GLContext& context,
     uint32_t primitive_count,
     uint32_t first_primitive
 ) {
+    gl_set_context(context);
     GLContextState& state = gl_get_context_state();
     assert(state.bound_vertex_array.has_value());
     assert(state.bound_framebuffer.has_value());
@@ -893,11 +979,13 @@ void GLGraphicsDevice::gl_draw_elements(
 }
 
 void GLGraphicsDevice::gl_draw_arrays_instanced(
+    GLContext& context,
     uint32_t primitive_count,
     uint32_t instance_count,
     uint32_t first_primitive,
     uint32_t first_instance
 ) {
+    gl_set_context(context);
     GLContextState& state = gl_get_context_state();
     assert(state.bound_vertex_array.has_value());
     assert(state.bound_framebuffer.has_value());
@@ -920,11 +1008,13 @@ void GLGraphicsDevice::gl_draw_arrays_instanced(
 }
 
 void GLGraphicsDevice::gl_draw_elements_instanced(
+    GLContext& context,
     uint32_t primitive_count,
     uint32_t instance_count,
     uint32_t first_primitive,
     uint32_t first_instance
 ) {
+    gl_set_context(context);
     GLContextState& state = gl_get_context_state();
     assert(state.bound_vertex_array.has_value());
     assert(state.bound_framebuffer.has_value());
@@ -956,7 +1046,12 @@ void GLGraphicsDevice::gl_draw_elements_instanced(
     );
 }
 
-void GLGraphicsDevice::gl_dispatch(uint32_t x, uint32_t y, uint32_t z) {
+void GLGraphicsDevice::gl_dispatch(
+    GLContext& context,
+    uint32_t x, 
+    uint32_t y, 
+    uint32_t z
+) {
     // TODO
     assert(false);
 }
@@ -1021,7 +1116,7 @@ std::unique_ptr<engine::graphics::TextureRenderTarget> GLGraphicsDevice::create_
         width,
         height,
         *this,
-        gl_create_framebuffer()
+        gl_create_framebuffer(headless_context.value())
     )));
 }
 
@@ -1183,6 +1278,7 @@ std::unique_ptr<engine::graphics::Window> GLGraphicsDevice::create_window(
 void GLGraphicsDevice::present(Window& window) {
     assert(dynamic_cast<GLWindow*>(&window) != nullptr);
     GLWindow& gl_window = dynamic_cast<GLWindow&>(window);
+    gl_set_context(gl_window.get_context());
     gl_window.swap_buffers();
 }
 

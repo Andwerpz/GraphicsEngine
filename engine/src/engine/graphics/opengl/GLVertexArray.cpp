@@ -15,7 +15,7 @@ GLVertexArray::GLVertexArray(GLVertexArray&& other) :
 
 GLVertexArray::~GLVertexArray() {
     if(handle != 0) {
-        device.gl_delete_vertex_array(handle);
+        device.gl_delete_vertex_array(*this);
     }
 }
 
@@ -37,6 +37,8 @@ void GLVertexArray::gl_bind_vertex_buffer(
         default:
             assert(false);
     }
+
+    device.gl_set_context(context);
 
     // bind buffer to vertex array
     glVertexArrayVertexBuffer(
@@ -84,6 +86,8 @@ void GLVertexArray::gl_bind_vertex_attribute(
             assert(false);
     }
 
+    device.gl_set_context(context);
+
     // create new vertex attribute format
     glVertexArrayAttribFormat(
         handle,
@@ -113,6 +117,7 @@ void GLVertexArray::gl_bind_index_buffer(
     IndexFormat format
 ) { 
     assert(!index_format.has_value());
+    device.gl_set_context(context);
     glVertexArrayElementBuffer(
         handle, 
         buffer.get_handle()

@@ -15,7 +15,7 @@ GLBuffer::GLBuffer(GLBuffer&& other) :
 
 GLBuffer::~GLBuffer() {
     if(handle != 0) {
-        device.gl_delete_buffer(handle);
+        device.gl_delete_buffer(*this);
     }
 }
 

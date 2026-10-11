@@ -52,7 +52,6 @@ void GLTextureRenderTarget::clear(ClearFlags flags) {
         ((flags & ClearFlags::Depth) != ClearFlags::None ? GL_DEPTH_BUFFER_BIT : 0)
     ;
 
-    device.gl_set_context(gl_framebuffer.get_context());
     device.gl_bind_framebuffer(gl_framebuffer);
     glClear(gl_clear_flags);
 }
@@ -90,7 +89,6 @@ void GLWindowRenderTarget::clear(ClearFlags flags) {
         ((flags & ClearFlags::Depth) != ClearFlags::None ? GL_DEPTH_BUFFER_BIT : 0)
     ;
 
-    device.gl_set_context(gl_framebuffer.get_context());
     device.gl_bind_framebuffer(gl_framebuffer);
     glClear(gl_clear_flags);
 }

@@ -20,7 +20,7 @@ GLTexture::GLTexture(GLTexture&& other) :
 
 GLTexture::~GLTexture() {
     if(handle != 0) {
-        device.gl_delete_texture(handle);
+        device.gl_delete_texture(*this);
     }
 }
 
@@ -124,12 +124,64 @@ void GLTexture::upload_data(
 }
 
 void GLTexture::retrieve_data(
-    const void* data,
+    void* data,
     uint32_t mip_level,
     uint32_t cube_face
 ) {
-    // TODO
-    assert(false);
+    if(data == nullptr) {
+        engine::utils::throw_error("data cannot be nullptr");
+    }
+    if(mip_level >= get_mip_levels()) {
+        engine::utils::throw_error("mip_level out of range");
+    }
+    if(get_dimension() == TextureDimension::Cube) {
+        if(cube_face >= 6) {
+            engine::utils::throw_error("cube_face should be < 6");
+        }
+    }
+    else {
+        if(cube_face > 0) {
+            engine::utils::throw_error("cube_face should be 0 for non-cubemap texture");
+        }
+    }
+
+    GLenum gl_format = GLGraphicsDevice::gl_format(get_format());
+    GLenum gl_type = GLGraphicsDevice::gl_type(get_format());
+    GLint x = 0;
+    GLint y = 0;
+    GLint z = 0;
+    GLsizei width = static_cast<GLsizei>(get_width(mip_level));
+    GLsizei height = 1;
+    GLsizei depth = 1;
+    switch (get_dimension()) {
+        case TextureDimension::D1:
+            break;
+        case TextureDimension::D2:
+            height = static_cast<GLsizei>(get_height(mip_level));
+            break;
+        case TextureDimension::D3:
+            height = static_cast<GLsizei>(get_height(mip_level));
+            depth = static_cast<GLsizei>(get_depth(mip_level));
+            break;
+        case TextureDimension::Cube:
+            height = static_cast<GLsizei>(get_height(mip_level));
+            z = static_cast<GLint>(cube_face);
+            break;
+        default:
+            assert(false);
+            return;
+    }
+
+    glGetTextureSubImage(
+        handle,
+        static_cast<GLint>(mip_level),
+        x, y, z,
+        width, height, depth,
+        gl_format,
+        gl_type,
+        static_cast<GLsizei>(get_size(mip_level)),
+        data
+    );
 }
 
 void GLTexture::generate_mipmaps() {

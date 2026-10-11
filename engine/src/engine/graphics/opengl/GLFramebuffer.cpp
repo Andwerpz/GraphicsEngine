@@ -15,7 +15,7 @@ GLFramebuffer::GLFramebuffer(GLFramebuffer&& other) :
 
 GLFramebuffer::~GLFramebuffer() {
     if(handle != 0) {
-        device.gl_delete_framebuffer(handle);
+        device.gl_delete_framebuffer(*this);
     }
 }
 
@@ -23,6 +23,7 @@ void GLFramebuffer::gl_bind_color_attachment(
     uint32_t index,
     GLTexture& texture
 ) {
+    device.gl_set_context(context);
     glNamedFramebufferTexture(
         handle,
         GL_COLOR_ATTACHMENT0 + index,
@@ -34,6 +35,7 @@ void GLFramebuffer::gl_bind_color_attachment(
 void GLFramebuffer::gl_bind_depth_attachment(
     GLRenderbuffer& renderbuffer
 ) {
+    device.gl_set_context(context);
     glNamedFramebufferRenderbuffer(
         handle,
         GL_DEPTH_ATTACHMENT,
@@ -45,6 +47,7 @@ void GLFramebuffer::gl_bind_depth_attachment(
 void GLFramebuffer::gl_set_draw_buffers(
     std::initializer_list<GLenum> bufs
 ) {
+    device.gl_set_context(context);
     glNamedFramebufferDrawBuffers(
         handle,
         bufs.size(),
@@ -55,6 +58,7 @@ void GLFramebuffer::gl_set_draw_buffers(
 void GLFramebuffer::gl_set_draw_buffers(
     std::span<GLenum> bufs
 ) {
+    device.gl_set_context(context);
     glNamedFramebufferDrawBuffers(
         handle,
         bufs.size(),
@@ -63,6 +67,7 @@ void GLFramebuffer::gl_set_draw_buffers(
 }
 
 bool GLFramebuffer::gl_is_complete() {
+    device.gl_set_context(context);
     GLenum status = glCheckNamedFramebufferStatus(
         handle,
         GL_FRAMEBUFFER

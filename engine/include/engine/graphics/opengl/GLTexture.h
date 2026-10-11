@@ -29,7 +29,7 @@ public:
     ) override;
 
     void retrieve_data(
-        const void* data,
+        void* data,
         uint32_t mip_level,
         uint32_t cube_face
     ) override;

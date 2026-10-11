@@ -12,7 +12,7 @@ GLShader::GLShader(GLShader&& other) :
 
 GLShader::~GLShader() {
     if(handle != 0) {
-        device.gl_delete_shader(handle);
+        device.gl_delete_shader(*this);
     }
 }
 

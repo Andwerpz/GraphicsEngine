@@ -27,7 +27,7 @@ GLRenderbuffer::GLRenderbuffer(GLRenderbuffer&& other) :
 
 GLRenderbuffer::~GLRenderbuffer() {
     if(handle != 0) {
-        device.gl_delete_renderbuffer(handle);
+        device.gl_delete_renderbuffer(*this);
     }
 }
 

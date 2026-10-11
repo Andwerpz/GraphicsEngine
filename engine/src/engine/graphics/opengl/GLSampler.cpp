@@ -15,7 +15,7 @@ GLSampler::GLSampler(GLSampler&& other) :
 
 GLSampler::~GLSampler() {
     if(handle != 0) {
-        device.gl_delete_sampler(handle);
+        device.gl_delete_sampler(*this);
     }
 }
 

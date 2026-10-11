@@ -12,7 +12,7 @@ engine::graphics::RenderingProgram(std::move(other)), device(other.device), hand
 
 GLRenderingProgram::~GLRenderingProgram() {
     if(handle != 0) {
-        device.gl_delete_rendering_program(handle);
+        device.gl_delete_rendering_program(*this);
     }
 }
 
@@ -40,7 +40,7 @@ engine::graphics::ComputeProgram(std::move(other)), device(other.device), handle
 
 GLComputeProgram::~GLComputeProgram() {
     if(handle != 0) {
-        device.gl_delete_compute_program(handle);
+        device.gl_delete_compute_program(*this);
     }
 }
 
