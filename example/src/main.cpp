@@ -11,7 +11,7 @@ int main(int argc, char** argv) {
     // test_skybox();
     // test_render_target();
     // test_separate_invocations();
-    // test_same_invocation_twice();
+    test_same_invocation_twice();
 
     // test_application();
 

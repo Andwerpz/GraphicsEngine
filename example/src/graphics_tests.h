@@ -833,11 +833,11 @@ inline void test_same_invocation_twice() {
 
         invocation->do_clear_color(true);
         invocation->draw(2, 1, 0, 0);
-        probe("after red, red spot", 75, 75);
-        probe("after red, green spot", 175, 75);
+        // probe("after red, red spot", 75, 75);
+        // probe("after red, green spot", 175, 75);
 
         // green: instance 1
-        RectInstance rect = { // green
+        rect = { // green
             glm::translate(glm::mat4(1.0f), glm::vec3(150.0f, 50.0f, 0.0f))
                 * glm::scale(glm::mat4(1.0f), glm::vec3(50.0f, 50.0f, 1.0f)),
             glm::vec4(0, 1, 0, 1)
@@ -846,8 +846,8 @@ inline void test_same_invocation_twice() {
 
         invocation->do_clear_color(false);
         invocation->draw(2, 1, 0, 1);
-        probe("after green, red spot", 75, 75);
-        probe("after green, green spot", 175, 75);
+        // probe("after green, red spot", 75, 75);
+        // probe("after green, green spot", 175, 75);
 
         device.present(*window);
         gl_device.gl_get_error();
