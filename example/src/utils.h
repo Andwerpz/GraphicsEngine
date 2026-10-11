@@ -3,7 +3,7 @@
 #include <engine/graphics/GraphicsDevice.h>
 #include <engine/graphics/Shader.h>
 #include <engine/graphics/Buffer.h>
-#include <engine/assets/Image.h>
+#include <engine/asset/Image.h>
 
 #include <engine/graphics/opengl/GLBuffer.h>
 

@@ -16,6 +16,11 @@ GLRenderingProgramInvocation::GLRenderingProgramInvocation(
 }
 
 void GLRenderingProgramInvocation::validate_impl() {
+    // make sure render target has been bound
+    if(!render_target.has_value()) {
+        engine::utils::throw_error("no render target has been bound");
+    }
+
     // check shader interface inputs
     for(const auto& [location, input_var] : program.get_interface().inputs) {
         // make sure there is a corresponding vertex attribute bound
@@ -193,7 +198,6 @@ void GLRenderingProgramInvocation::draw_impl(
         glDisable(GL_DEPTH_TEST);
     }
     if(clear_color || clear_depth) {
-        std::cout << "CLEAR COLOR : " << clear_color << " DEPTH : " << clear_depth << std::endl;
         GLenum clear_flags = 
             (clear_color ? GL_COLOR_BUFFER_BIT : 0) |
             (clear_depth ? GL_DEPTH_BUFFER_BIT : 0);

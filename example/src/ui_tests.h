@@ -3,11 +3,11 @@
 #include <engine/ui/UIRenderer.h>
 #include <glad/glad.h>
 
-#include <engine/assets/Font.h>
+#include <engine/asset/Font.h>
 
 #include "utils.h"
 
-inline void test_ui_rect() {
+inline void test_ui_renderer() {
     engine::graphics::opengl::GLGraphicsDevice device;
     auto window = device.create_window(800, 600, "test window");
     uint32_t window_width = window->get_width();
@@ -18,6 +18,9 @@ inline void test_ui_rect() {
         device,
         *window_render_target
     );
+
+    fs::path font_path = fs::current_path() / "res/fonts/Consolas-Regular.ttf";
+    auto font = engine::asset::Font::load_font(font_path);
 
     engine::app::Application application;
     auto& task_loop = application.get_task_loop();
@@ -83,6 +86,8 @@ inline void test_ui_rect() {
                 float ey = sy + cos(3.14159265 * 2.0 / N * i) * 100;
                 ui_renderer.draw_line({sx, sy}, {ex, ey}, 1, {1, 1, 1, 1});
             }
+
+            ui_renderer.draw_text("Bello guys, it's me, sanat dubey", {50, 550}, font);
             
             ui_renderer.render();
 
@@ -95,7 +100,9 @@ inline void test_ui_rect() {
     application.run();
 }
 
-inline void test_font() {
+inline void test_load_font() {
     fs::path font_path = fs::current_path() / "res/fonts/Consolas-Regular.ttf";
-    auto font = engine::assets::Font::load_font(font_path);
+    auto font = engine::asset::Font::load_font(font_path);
+    auto& atlas = font.get_atlas();
+    atlas.export_as_png(fs::current_path() / "atlas.png");
 }

@@ -75,6 +75,7 @@ add_library(engine STATIC
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/glad/src/glad.c
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/spirv_reflect/spirv_reflect.c
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb/stb_image.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb/stb_image_write.cpp
 )
 
 # make stuff available for users to include

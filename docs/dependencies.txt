@@ -7,6 +7,6 @@ sudo apt install \
     libxi-dev \
     libx11-dev \
     libwayland-dev \
-    libxkbcommon-dev
-
-spirv-header spirv-tools
+    libxkbcommon-dev \
+    spirv-headers \
+    spirv-tools

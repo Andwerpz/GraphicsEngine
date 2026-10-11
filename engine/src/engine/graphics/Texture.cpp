@@ -1,6 +1,6 @@
 #include <engine/graphics/Texture.h>
 #include <engine/utils/error.h>
-#include <engine/assets/Image.h>
+#include <engine/asset/Image.h>
 #include <cassert>
 
 namespace engine::graphics {
@@ -63,7 +63,7 @@ uint64_t Texture::get_size(uint32_t mip_level) const {
 }
 
 void Texture::upload_image(
-    engine::assets::Image& image,
+    engine::asset::Image& image,
     uint32_t mip_level,
     uint32_t cube_face
 ) {
@@ -78,7 +78,7 @@ void Texture::upload_image(
     }
 
     // convert image data into proper format
-    assert(image.get_format() == engine::assets::ImageFormat::RGBA8);
+    assert(image.get_format() == engine::asset::ImageFormat::RGBA8);
     void* buf;
     switch(get_format()) {
         case TextureFormat::RGBA32F: {

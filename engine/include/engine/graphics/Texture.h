@@ -2,7 +2,7 @@
 #include <cstdint>
 #include <math.h>
 
-namespace engine::assets {
+namespace engine::asset {
 class Image;
 }
 
@@ -110,7 +110,7 @@ public:
     // this texture must be 2D or a Cubemap
     // the dimensions of the layer must match the image dimensions
     void upload_image(
-        engine::assets::Image& image,
+        engine::asset::Image& image,
         uint32_t mip_level = 0,
         uint32_t cube_face = 0
     );

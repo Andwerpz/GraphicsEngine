@@ -1,9 +1,15 @@
 #pragma once
+#include <stack>
+#include <map>
+#include <memory>
+
 #include <engine/graphics/GraphicsDevice.h>
 #include <engine/graphics/RenderTarget.h>
 #include <engine/graphics/Program.h>
 #include <engine/graphics/ProgramInvocation.h>
-#include <stack>
+#include <engine/asset/Font.h>
+#include <engine/asset/Image.h>
+#include <engine/graphics/Texture.h>
 
 namespace engine::ui {
 
@@ -32,19 +38,15 @@ namespace engine::ui {
 // - push_clip(top_left, dim)
 // - pop_clip()
 
-// text rendering TODO
-// - figure out how to load font files
-// - figure out how to represent fonts
-//   - using engine::assets::Font 
-// - figure out how to have array of texture samplers in a shader
-// - figure out what extra per-instance information we need (and how to minimize it)
-
 class UIRenderer {
     using GraphicsDevice = engine::graphics::GraphicsDevice;
     using RenderTarget = engine::graphics::RenderTarget;
     using RenderingProgram = engine::graphics::RenderingProgram;
     using RenderingProgramInvocation = engine::graphics::RenderingProgramInvocation;
     using Buffer = engine::graphics::Buffer;
+    using Texture = engine::graphics::Texture;
+    using Font = engine::asset::Font;
+    using Image = engine::asset::Image;
 
 public:
     UIRenderer(
@@ -70,7 +72,16 @@ public:
     // the end pixels are included 
     // horizontal and vertical lines of width 1 are guaranteed to be pixel perfect
     // TODO make all lines of width 1 pixel perfect
+    //   look into bresenham line drawing algorithm
     void draw_line(Vec2 start, Vec2 end, float width, Color color);
+
+    // draws the given text
+    // start gives the initial position of the baseline pointer 
+    void draw_text(
+        const std::string_view& text, 
+        Vec2 start, 
+        Font& font
+    );
 
     // void draw_text();
     // void draw_blur();
@@ -113,12 +124,15 @@ private:
         Color color;
     };
     struct DrawTexturedRect {
-        // TODO
+        Rect vertex_rect;
+        Rect uv_rect;
+        uint64_t asset_id;
     };
     using Command = std::variant<
         SetClip,
         DrawRect,
-        DrawLine
+        DrawLine,
+        DrawTexturedRect
     >;
     std::vector<Command> commands;
 
@@ -127,6 +141,9 @@ private:
     std::unique_ptr<Buffer> instance_buffer;
     std::unique_ptr<RenderingProgram> rect_program;
     std::unique_ptr<RenderingProgramInvocation> rect_invocation;
+
+    // mapping asset_id -> cached texture
+    std::map<uint64_t, std::unique_ptr<Texture>> asset_textures;
 };
 
 }

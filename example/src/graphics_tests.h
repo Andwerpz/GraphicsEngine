@@ -179,7 +179,7 @@ inline void test_texture() {
     auto sampler = device.create_sampler();
 
     fs::path image_path = fs::current_path() / "res/textures/astolfo.png";
-    auto image = engine::assets::Image::load_image(image_path);
+    auto image = engine::asset::Image::load_image(image_path);
     auto texture = device.create_texture(
         engine::graphics::TextureDimension::D2,
         engine::graphics::TextureFormat::RGBA32F,
@@ -306,7 +306,7 @@ inline void test_skybox() {
 
     auto sampler = device.create_sampler();
 
-    auto texture_image = engine::assets::Image::load_image(fs::current_path() / "res/textures/astolfo.png");
+    auto texture_image = engine::asset::Image::load_image(fs::current_path() / "res/textures/astolfo.png");
     auto texture = device.create_texture(
         engine::graphics::TextureDimension::D2,
         engine::graphics::TextureFormat::RGBA32F,
@@ -317,7 +317,7 @@ inline void test_skybox() {
     );
     texture->upload_image(texture_image);
 
-    auto** skybox_image = (engine::assets::Image**) malloc(sizeof(engine::assets::Image*) * 6);
+    auto** skybox_image = (engine::asset::Image**) malloc(sizeof(engine::asset::Image*) * 6);
     const char* skybox_strs[] = {
         "right.jpg",   // +X
         "left.jpg",    // -X
@@ -327,8 +327,8 @@ inline void test_skybox() {
         "back.jpg",    // -Z
     };
     for(int i = 0; i < 6; i++) {
-        auto image = engine::assets::Image::load_image(fs::current_path() / "res/textures/lake" / skybox_strs[i]);
-        skybox_image[i] = new engine::assets::Image(std::move(image));
+        auto image = engine::asset::Image::load_image(fs::current_path() / "res/textures/lake" / skybox_strs[i]);
+        skybox_image[i] = new engine::asset::Image(std::move(image));
     }
     auto skybox = device.create_texture(
         engine::graphics::TextureDimension::Cube,
@@ -845,7 +845,7 @@ inline void test_same_invocation_twice() {
         instance_buffer->upload_data(&rect, sizeof(RectInstance));
 
         invocation->do_clear_color(false);
-        invocation->draw(2, 1, 0, 1);
+        invocation->draw(2, 1, 0, 0);
         // probe("after green, red spot", 75, 75);
         // probe("after green, green spot", 175, 75);
 
@@ -854,5 +854,51 @@ inline void test_same_invocation_twice() {
 
         std::cout << "FRAME END\n" << std::endl;
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    }
+}
+
+inline void test_sampler_array() {
+    engine::graphics::opengl::GLGraphicsDevice gl_device;
+    engine::graphics::GraphicsDevice& device = gl_device;
+    auto window = device.create_window(800, 600, "test window");
+    uint32_t window_width = window->get_width();
+    uint32_t window_height = window->get_height();
+    auto window_render_target = device.create_window_render_target(*window);
+
+    auto program = create_rendering_program(
+        device,
+        fs::current_path() / "res/shaders/testing/texture_array.vert", 
+        fs::current_path() / "res/shaders/testing/texture_array.frag",
+        engine::graphics::PrimitiveTopology::TriangleList
+    );
+
+    auto texture_image = engine::asset::Image::load_image(fs::current_path() / "res/textures/astolfo.png");
+    auto texture = device.create_texture(
+        engine::graphics::TextureDimension::D2,
+        engine::graphics::TextureFormat::RGBA32F,
+        texture_image.get_width(),
+        texture_image.get_height(),
+        1,  // depth
+        1   // mip levels
+    );
+    texture->upload_image(texture_image);
+
+    auto sampler = device.create_sampler();
+
+    auto invocation = program->create_invocation();
+    invocation->bind_render_target(*window_render_target);
+    invocation->bind_sampled_texture(
+        {0, 1},
+        *texture,
+        *sampler
+    );
+    invocation->validate();
+
+    while(true) {
+        invocation->draw(1);
+
+        device.present(*window);
+        dynamic_cast<engine::graphics::opengl::GLGraphicsDevice&>(device).gl_get_error();
+        std::this_thread::sleep_for(std::chrono::nanoseconds(1000000000 / 60));
     }
 }

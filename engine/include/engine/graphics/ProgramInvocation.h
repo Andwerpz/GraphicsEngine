@@ -23,15 +23,13 @@ class Program;
 class Sampler;
 class GraphicsDevice;
 
-// TODO need to handle non-buffer uniforms. These are probably more graphics API specific
-//   seems like I may need to query non-buffer uniforms from the graphics API 
-//   or I suppose I could directly parse the spirv code as well 
-//   spirv-reflect doesn't seem to have a way to query these uniforms
 // TODO instead of immediately updating uniform buffers, lazily update them  
 
-// TODO maybe introduce the notion of a 'RenderTarget' 
-//   currently, we have to handle rendering to the window as a special case
-//   perhaps a RenderTarget could unify rendering to textures, or rendering directly to a window
+// TODO currently, I treat shader input/output variables and bound resources as immutable after validation
+//   I feel that this is too restrictive. A user should be able to dynamically bind and unbind stuff like textures between invocations
+//   however, we still need to have some degree of checking that everything is bound before invoking the shader 
+//   so, allow the user to dynamically bind and unbind shader resources and move the check that everything is bound to draw()
+//   to make the check inexpensive if everything is bound, just keep track of how many unbound resources there are
 
 // resolved handle to a location in a uniform buffer 
 // tokens are templated in order to provide compile-time checks that your uniform types are correct

@@ -144,6 +144,53 @@ void UIRenderer::draw_line(Vec2 start, Vec2 end, float width, Color color) {
     commands.push_back(DrawLine {start, end, width, color});
 }
 
+void UIRenderer::draw_text(
+    const std::string_view& text, 
+    Vec2 start, 
+    Font& font
+) {
+    // create font atlas texture
+    Image& atlas = font.get_atlas();
+    uint64_t asset_id = atlas.get_asset_id();
+    if(!asset_textures.contains(asset_id)) {
+        auto texture = device.create_texture(
+            engine::graphics::TextureDimension::D2,
+            engine::graphics::TextureFormat::RGBA32F,
+            atlas.get_width(),
+            atlas.get_height(),
+            1,
+            1
+        );
+        texture->upload_image(atlas);
+        asset_textures.emplace(asset_id, std::move(texture));
+    }
+
+    // rect commands
+    float xptr = start.x;
+    float yptr = start.y;
+    for(int i = 0; i < text.size(); i++) {
+        char c = text[i];
+        Font::Glyph& glyph = font.get_glyph(c);
+
+        float xoff = xptr + glyph.bearing_x_px;
+        float yoff = yptr + glyph.bearing_y_px;
+        float width = glyph.width_px;
+        float height = glyph.height_px;
+
+        float uoff = (float) glyph.atlas_x_px / (float) atlas.get_width();
+        float voff = (float) glyph.atlas_y_px / (float) atlas.get_height();
+        float uwidth = (float) glyph.width_px / (float) atlas.get_width();
+        float vheight = (float) glyph.height_px / (float) atlas.get_height();
+
+        commands.push_back(DrawTexturedRect {
+            {xoff, yoff, width, height}, {uoff, voff, uwidth, vheight},
+            asset_id
+        });
+        
+        xptr += glyph.advance_x_px;
+    }
+}
+
 void UIRenderer::push_clip(Rect rect) {
     assert(clip_stack.size() >= 1);
     Rect old_rect = clip_stack.top();
@@ -292,6 +339,15 @@ void UIRenderer::render() {
             }
 
             write_instance(transform, color);
+        }
+        else if(std::holds_alternative<DrawTexturedRect>(_cmd)) {
+            DrawTexturedRect cmd = std::get<DrawTexturedRect>(_cmd);
+            Rect vertex_rect = cmd.vertex_rect;
+            Rect uv_rect = cmd.uv_rect;
+            uint64_t asset_id = cmd.asset_id;
+
+            // TODO
+            assert(false);
         }
         else assert(false);
     }
