@@ -105,7 +105,7 @@ std::vector<std::vector<Pixel>> decode_bitmap(const FT_Bitmap& bitmap) {
     return pixels;
 }
 
-Font Font::load_font(const fs::path& path) {
+Font Font::load_font(const fs::path& path, float font_size) {
     // initialize FreeType
     FT_Library library;
     if(FT_Init_FreeType(&library)) {
@@ -124,12 +124,17 @@ Font Font::load_font(const fs::path& path) {
         engine::utils::throw_error("Failed to load font : " + path.string());
     }
 
-    // Request glyphs at 24 pixels per EM
-    if (FT_Set_Pixel_Sizes(face, 0, 48)) {
+    // request font size
+    if (FT_Set_Pixel_Sizes(face, 0, font_size)) {
         FT_Done_Face(face);
         FT_Done_FreeType(library);
         engine::utils::throw_error("Failed to set font size : " + path.string());
     }
+
+    // load font info
+    float ascent = face->size->metrics.ascender / 64.0f;
+    float descent = -face->size->metrics.descender / 64.0f;     // FreeType usually stores descent as a negative value
+    float line_height = face->size->metrics.height / 64.0f;
 
     // load glyph dimensions
     std::map<uint64_t, Font::Glyph> glyphs;
@@ -148,11 +153,11 @@ Font Font::load_font(const fs::path& path) {
 
                     Font::Glyph glyph;
                     glyph.char_code = char_code;
-                    glyph.width_px = ft_glyph->bitmap.width;
-                    glyph.height_px = ft_glyph->bitmap.rows;
-                    glyph.advance_x_px = ft_glyph->advance.x / 64.0f;
-                    glyph.bearing_x_px = ft_glyph->bitmap_left;
-                    glyph.bearing_y_px = -ft_glyph->bitmap_top;
+                    glyph.width = ft_glyph->bitmap.width;
+                    glyph.height = ft_glyph->bitmap.rows;
+                    glyph.advance_x = ft_glyph->advance.x / 64.0f;
+                    glyph.bearing_x = ft_glyph->bitmap_left;
+                    glyph.bearing_y = -ft_glyph->bitmap_top;
                     glyphs.insert({char_code, glyph});
                     bitmaps.insert({char_code, decode_bitmap(ft_glyph->bitmap)});
                 }
@@ -187,8 +192,8 @@ Font Font::load_font(const fs::path& path) {
             Font::Glyph& glyph = i->second;
             assert(bitmaps.contains(char_code));
             std::vector<std::vector<Pixel>>& bitmap = bitmaps.at(char_code);
-            uint32_t width = glyph.width_px;
-            uint32_t height = glyph.height_px;
+            uint32_t width = glyph.width;
+            uint32_t height = glyph.height;
 
             // see if we don't need to place
             if(width == 0 || height == 0) continue;
@@ -201,8 +206,8 @@ Font Font::load_font(const fs::path& path) {
             }
 
             // place glyph
-            glyph.atlas_x_px = xptr;
-            glyph.atlas_y_px = yptr;
+            glyph.atlas_x = xptr;
+            glyph.atlas_y = yptr;
             atlas_height = std::max(atlas_height, yptr + height);
             xptr += width + PADDING_PX;
             assert(xptr <= atlas_width);
@@ -214,8 +219,8 @@ Font Font::load_font(const fs::path& path) {
                 for(uint32_t xoff = 0; xoff < width; xoff++) {
                     for(uint32_t yoff = 0; yoff < height; yoff++) {
                         Pixel& px = bitmap[xoff][yoff];
-                        uint32_t x = glyph.atlas_x_px + xoff;
-                        uint32_t y = glyph.atlas_y_px + yoff;
+                        uint32_t x = glyph.atlas_x + xoff;
+                        uint32_t y = glyph.atlas_y + yoff;
                         atlas->set_pixel(
                             x, y,
                             px.r, px.g, px.b, px.a
@@ -252,7 +257,10 @@ Font Font::load_font(const fs::path& path) {
 
     return Font(
         std::move(atlas),
-        std::move(glyphs)
+        std::move(glyphs),
+        ascent,
+        descent,
+        line_height
     );
 }
 
@@ -260,15 +268,23 @@ Font::Font(Font&& other) :
     atlas(std::move(other.atlas)),
     glyphs(std::move(other.glyphs))
 {
-    // do nothing
+    ascent = other.ascent;
+    descent = other.descent;
+    line_height = other.line_height;
 }
 
 Font::Font(
     Image&& atlas,
-    std::map<uint64_t, Glyph>&& glyphs
+    std::map<uint64_t, Glyph>&& glyphs,
+    float ascent,
+    float descent,
+    float line_height
 ) : 
     atlas(std::move(atlas)),
-    glyphs(std::move(glyphs))
+    glyphs(std::move(glyphs)),
+    ascent(ascent),
+    descent(descent),
+    line_height(line_height)
 {
     // do nothing
 }
@@ -278,6 +294,16 @@ Font::Glyph& Font::get_glyph(uint64_t char_code) {
         engine::utils::throw_error("no glyph with char code : " + std::to_string(char_code));
     }
     return glyphs.at(char_code);
+}
+
+float Font::measure_text_width(const std::string_view& text) {
+    float ans = 0;
+    for(int i = 0; i < text.size(); i++) {
+        char c = text[i];
+        Glyph& glyph = get_glyph(c);
+        ans += glyph.advance_x;
+    }
+    return ans;
 }
 
 }

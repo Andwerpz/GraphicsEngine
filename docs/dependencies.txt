@@ -9,4 +9,9 @@ sudo apt install \
     libwayland-dev \
     libxkbcommon-dev \
     spirv-headers \
-    spirv-tools
+    spirv-tools \
+    cmake \
+    libgl1-mesa-dev \
+    libshaderc-dev \
+    build-essential \
+    libglfw3-dev

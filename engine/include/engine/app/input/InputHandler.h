@@ -3,6 +3,7 @@
 #include <functional>
 #include <set>
 #include <map>
+#include <glm/glm.hpp>
 
 #include "KeyEvent.h"
 #include "MouseButtonEvent.h"
@@ -17,8 +18,7 @@ class TaskLoop;
 
 struct CursorPositionEvent {
     // position is given relative to the top left corner of the window
-    double xpos;
-    double ypos;
+    glm::vec2 pos;
 };
 
 struct ScrollEvent {

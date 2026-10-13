@@ -306,7 +306,7 @@ inline void test_skybox() {
         engine::graphics::BufferUsage::Vertex,
         engine::graphics::BufferFrequency::Static,
         cube_uvs
-    ); 
+    );
 
     auto sampler = device.create_sampler();
 
@@ -427,6 +427,8 @@ inline void test_skybox() {
     auto cube_projection = cube_invocation->get_uniform<glm::mat4>("camera.projection");
     auto cube_view = cube_invocation->get_uniform<glm::mat4>("camera.view");
 
+    skybox_invocation->do_clear_color(false);
+    skybox_invocation->do_clear_depth(true);
     cube_invocation->do_clear_color(false);
     cube_invocation->do_clear_depth(true);
 
@@ -452,6 +454,8 @@ inline void test_skybox() {
             glm::vec3(0.0f),
             glm::vec3(0.0f, 1.0f, 0.0f)
         );
+
+        window_render_target->clear(engine::graphics::ClearFlags::Color);
 
         skybox_invocation->set_uniform(skybox_projection, projection);
         skybox_invocation->set_uniform(skybox_view, view);
@@ -882,23 +886,16 @@ inline void test_sampler_array() {
         engine::graphics::PrimitiveTopology::TriangleList
     );
 
-    fs::path font_path = fs::current_path() / "res/fonts/Consolas-Regular.ttf";
-    auto font = engine::asset::Font::load_font(font_path);
-    auto& atlas = font.get_atlas();
-
-    engine::asset::Font::Glyph& glyph = font.get_glyph('!');
-    std::cout << "Glyph offset : " << glyph.atlas_x_px << " " << glyph.atlas_y_px << std::endl;
-
-    // auto texture_image = engine::asset::Image::load_image(fs::current_path() / "res/textures/astolfo.png");
+    auto texture_image = engine::asset::Image::load_image(fs::current_path() / "res/textures/astolfo.png");
     auto texture = device.create_texture(
         engine::graphics::TextureDimension::D2,
         engine::graphics::TextureFormat::RGBA32F,
-        atlas.get_width(),
-        atlas.get_height(),
+        texture_image.get_width(),
+        texture_image.get_height(),
         1,  // depth
         1   // mip levels
     );
-    texture->upload_image(atlas);
+    texture->upload_image(texture_image);
 
     auto sampler = device.create_sampler();
 

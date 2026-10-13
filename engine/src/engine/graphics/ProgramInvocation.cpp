@@ -475,12 +475,12 @@ void RenderingProgramInvocation::do_depth_testing(bool val) {
 
 void RenderingProgramInvocation::do_clear_color(bool val) {
     if(val) clear_flags |= ClearFlags::Color;
-    else clear_flags |= ~ClearFlags::Color;
+    else clear_flags &= ~ClearFlags::Color;
 }
 
 void RenderingProgramInvocation::do_clear_depth(bool val) {
     if(val) clear_flags |= ClearFlags::Depth;
-    else clear_flags |= ~ClearFlags::Depth;
+    else clear_flags &= ~ClearFlags::Depth;
 }
 
 }

@@ -3,6 +3,8 @@
 #include <map>
 #include <memory>
 
+#include <glm/glm.hpp>
+
 #include <engine/graphics/GraphicsDevice.h>
 #include <engine/graphics/RenderTarget.h>
 #include <engine/graphics/Program.h>
@@ -14,6 +16,8 @@
 
 #include <engine/asset/Font.h>
 #include <engine/asset/Image.h>
+
+#include <engine/ui/UIRect.h>
 
 namespace engine::ui {
 
@@ -59,32 +63,21 @@ public:
         RenderTarget& target
     );
 
-    struct Color {
-        float r, g, b, a;
-    };
-    struct Rect {
-        float x, y;
-        float width, height;
-    };
-    struct Vec2 {
-        float x, y;
-    };
-
     // draws an axis aligned rectangle with solid color
-    void draw_rect(Rect rect, Color color);
+    void draw_rect(UIRect rect, glm::vec4 color);
 
     // draws a line starting from start and ending at end
     // the end pixels are included 
     // horizontal and vertical lines of width 1 are guaranteed to be pixel perfect
     // TODO make all lines of width 1 pixel perfect
     //   look into bresenham line drawing algorithm
-    void draw_line(Vec2 start, Vec2 end, float width, Color color);
+    void draw_line(glm::vec2 start, glm::vec2 end, float width, glm::vec4 color);
 
     // draws the given text
     // start gives the initial position of the baseline pointer 
     void draw_text(
         const std::string_view& text, 
-        Vec2 start, 
+        glm::vec2 start, 
         Font& font
     );
 
@@ -95,7 +88,7 @@ public:
     // clip rectangles are always absolute
     // the new clip region is the intersection between rect and the old clip region
     // these should also turn into 'commands'
-    void push_clip(Rect rect);
+    void push_clip(UIRect rect);
     void pop_clip();
 
     // render to target using commands
@@ -112,24 +105,24 @@ private:
     RenderTarget& target;
 
     // clip rectangle stack
-    std::stack<Rect> clip_stack;
+    std::stack<UIRect> clip_stack;
 
     // list of commands so far
     struct SetClip {
-        Rect rect;
+        UIRect rect;
     };
     struct DrawRect {
-        Rect rect;
-        Color color;
+        UIRect rect;
+        glm::vec4 color;
     };
     struct DrawLine {
-        Vec2 start, end;
+        glm::vec2 start, end;
         float width;
-        Color color;
+        glm::vec4 color;
     };
     struct DrawTexturedRect {
-        Rect vertex_rect;
-        Rect uv_rect;
+        UIRect vertex_rect;
+        UIRect uv_rect;
         uint64_t asset_id;
     };
     using Command = std::variant<

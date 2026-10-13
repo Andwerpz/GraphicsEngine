@@ -72,14 +72,14 @@ inline void test_application() {
         *window, 
         [&](const engine::app::CursorPositionEvent& ev) -> void {
             if(mouse_pressed) {
-                float xdiff = ev.xpos - mouse_xpos;
-                float ydiff = ev.ypos - mouse_ypos;
+                float xdiff = ev.pos.x - mouse_xpos;
+                float ydiff = ev.pos.y - mouse_ypos;
                 xrot -= ydiff * 0.01;
                 yrot -= xdiff * 0.01;
                 xrot = glm::clamp(xrot, -glm::pi<float>() / 2.0f + 0.001f, glm::pi<float>() / 2.0f - 0.001f);
             }
-            mouse_xpos = ev.xpos;
-            mouse_ypos = ev.ypos;
+            mouse_xpos = ev.pos.x;
+            mouse_ypos = ev.pos.y;
         }
     );
     input_handler.set_mouse_button_callback(

@@ -41,8 +41,7 @@ void InputHandler::add_window(Window& window) {
                 if(handler->cursor_position_callbacks.contains(window)) {
                     auto func = handler->cursor_position_callbacks.at(window);
                     CursorPositionEvent ev;
-                    ev.xpos = xpos;
-                    ev.ypos = ypos;
+                    ev.pos = {xpos, ypos};
                     func(ev);
                 }
             }

@@ -166,17 +166,22 @@ UIRenderer::UIRenderer(
     default_sampler = device.create_sampler();
 }
 
-void UIRenderer::draw_rect(Rect rect, Color color) {
+void UIRenderer::draw_rect(UIRect rect, glm::vec4 color) {
     commands.push_back(DrawRect {rect, color});
 }
 
-void UIRenderer::draw_line(Vec2 start, Vec2 end, float width, Color color) {
+void UIRenderer::draw_line(
+    glm::vec2 start, 
+    glm::vec2 end, 
+    float width, 
+    glm::vec4 color
+) {
     commands.push_back(DrawLine {start, end, width, color});
 }
 
 void UIRenderer::draw_text(
     const std::string_view& text, 
-    Vec2 start, 
+    glm::vec2 start, 
     Font& font
 ) {
     // create font atlas texture
@@ -196,45 +201,44 @@ void UIRenderer::draw_text(
     }
 
     // rect commands
-    float xptr = start.x;
-    float yptr = start.y;
+    glm::vec2 pen = start;
     for(int i = 0; i < text.size(); i++) {
         char c = text[i];
         Font::Glyph& glyph = font.get_glyph(c);
 
-        float xoff = xptr + glyph.bearing_x_px;
-        float yoff = yptr + glyph.bearing_y_px;
-        float width = glyph.width_px;
-        float height = glyph.height_px;
+        glm::vec2 pos = pen;
+        pos.x += glyph.bearing_x;
+        pos.y += glyph.bearing_y;
+        glm::vec2 dim = {glyph.width, glyph.height};
 
-        float uoff = (float) glyph.atlas_x_px / (float) atlas.get_width();
-        float voff = (float) glyph.atlas_y_px / (float) atlas.get_height();
-        float uwidth = (float) glyph.width_px / (float) atlas.get_width();
-        float vheight = (float) glyph.height_px / (float) atlas.get_height();
+        glm::vec2 uv_pos = {glyph.atlas_x, glyph.atlas_y};
+        uv_pos.x /= atlas.get_width();
+        uv_pos.y /= atlas.get_height();
+        glm::vec2 uv_dim = dim;
+        uv_dim.x /= atlas.get_width();
+        uv_dim.y /= atlas.get_height();
 
         commands.push_back(DrawTexturedRect {
-            {xoff, yoff, width, height}, {uoff, voff, uwidth, vheight},
+            {pos, dim}, {uv_pos, uv_dim},
             asset_id
         });
         
-        xptr += glyph.advance_x_px;
+        pen.x += glyph.advance_x;
     }
 }
 
-void UIRenderer::push_clip(Rect rect) {
+void UIRenderer::push_clip(UIRect rect) {
     assert(clip_stack.size() >= 1);
-    Rect old_rect = clip_stack.top();
+    UIRect old_rect = clip_stack.top();
     
     // intersect along both axes
-    float xmin = std::max(rect.x, old_rect.x);
-    float xmax = std::min(rect.x + rect.width, old_rect.x + old_rect.width);
-    float ymin = std::max(rect.y, old_rect.y);
-    float ymax = std::min(rect.y + rect.height, old_rect.y + old_rect.height);
-    rect = Rect {xmin, ymin, xmax - xmin, ymax - ymin};
+    glm::vec2 min = glm::max(rect.pos, old_rect.pos);
+    glm::vec2 max = glm::min(rect.pos + rect.dim, old_rect.pos + old_rect.dim);
+    rect = UIRect {min, max - min};
 
     // check for degenerate clipping rectangle
-    if(rect.width <= 0 || rect.height <= 0) {
-        rect = Rect {0, 0, 0, 0};
+    if(rect.dim.x <= 0 || rect.dim.y <= 0) {
+        rect = UIRect {{0, 0}, {0, 0}};
     }
     
     clip_stack.push(rect);
@@ -262,6 +266,7 @@ void UIRenderer::render() {
     uint64_t gpu_instance_ptr = 0;
     std::optional<Texture*> bound_texture = std::nullopt;
 
+    std::cout << "START RENDER : " << commands.size() << std::endl;
     auto flush_instances = [&]() {
         if(cpu_instance_cnt == 0) return;
 
@@ -289,17 +294,19 @@ void UIRenderer::render() {
         // render
         rect_invocation->draw(2, cpu_instance_cnt, 0, gpu_instance_ptr);
 
-        // reset command batch state
-        cpu_buf_ptr = 0;
-        cpu_instance_cnt = 0;
+        std::cout << "FLUSH : " << cpu_instance_cnt << std::endl;
 
+        // reset command batch state
         gpu_buf_ptr += cpu_buf_upload_sz;
         gpu_instance_ptr += cpu_instance_cnt;
         bound_texture = std::nullopt;
+
+        cpu_buf_ptr = 0;
+        cpu_instance_cnt = 0;
     };
     auto write_instance = [&](
         glm::mat4 transform, 
-        Color color, 
+        glm::vec4 color, 
         glm::vec4 uv = {0, 0, 1, 1},
         bool sample_texture = false
     ) {
@@ -342,23 +349,23 @@ void UIRenderer::render() {
         }
         else if(std::holds_alternative<DrawRect>(_cmd)) {
             DrawRect cmd = std::get<DrawRect>(_cmd);
-            Rect rect = cmd.rect;
-            Color color = cmd.color;
+            UIRect rect = cmd.rect;
+            glm::vec4 color = cmd.color;
 
             glm::mat4 transform(
-                rect.width,     0.0f,        0.0f, 0.0f,
-                0.0f,           rect.height, 0.0f, 0.0f,
+                rect.dim.x,     0.0f,        0.0f, 0.0f,
+                0.0f,           rect.dim.y,  0.0f, 0.0f,
                 0.0f,           0.0f,        1.0f, 0.0f,
-                rect.x,         rect.y,      0.0f, 1.0f
+                rect.pos.x,     rect.pos.y,  0.0f, 1.0f
             );
             write_instance(transform, color);
         }
         else if(std::holds_alternative<DrawLine>(_cmd)) {
             DrawLine cmd = std::get<DrawLine>(_cmd);
-            Vec2 start = cmd.start;
-            Vec2 end = cmd.end;
+            glm::vec2 start = cmd.start;
+            glm::vec2 end = cmd.end;
             float width = cmd.width;
-            Color color = cmd.color;
+            glm::vec4 color = cmd.color;
 
             auto snap_center = [](float v, float w) -> float {
                 return (static_cast<int>(w) % 2 == 1) ? std::floor(v) + 0.5f : std::round(v);
@@ -406,8 +413,8 @@ void UIRenderer::render() {
         }
         else if(std::holds_alternative<DrawTexturedRect>(_cmd)) {
             DrawTexturedRect cmd = std::get<DrawTexturedRect>(_cmd);
-            Rect vertex_rect = cmd.vertex_rect;
-            Rect uv_rect = cmd.uv_rect;
+            UIRect vertex_rect = cmd.vertex_rect;
+            UIRect uv_rect = cmd.uv_rect;
             uint64_t asset_id = cmd.asset_id;
 
             // bind texture
@@ -420,15 +427,15 @@ void UIRenderer::render() {
 
             // write instance
             glm::mat4 transform(
-                vertex_rect.width,  0.0f,               0.0f, 0.0f,
-                0.0f,               vertex_rect.height, 0.0f, 0.0f,
+                vertex_rect.dim.x,  0.0f,               0.0f, 0.0f,
+                0.0f,               vertex_rect.dim.y,  0.0f, 0.0f,
                 0.0f,               0.0f,               1.0f, 0.0f,
-                vertex_rect.x,      vertex_rect.y,      0.0f, 1.0f
+                vertex_rect.pos.x,  vertex_rect.pos.y,  0.0f, 1.0f
             );
             write_instance(
                 transform,
                 {1, 1, 1, 1}, 
-                {uv_rect.x, uv_rect.y, uv_rect.x + uv_rect.width, uv_rect.y + uv_rect.height},
+                {uv_rect.pos, uv_rect.pos + uv_rect.dim},
                 true
             );
         }
@@ -445,7 +452,7 @@ void UIRenderer::reset() {
     while(clip_stack.size() != 0) {
         clip_stack.pop();
     }
-    clip_stack.push(Rect {0, 0, target.get_width(), target.get_height()});
+    clip_stack.push(UIRect {{0, 0}, {target.get_width(), target.get_height()}});
 }
     
 }

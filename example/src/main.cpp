@@ -16,8 +16,9 @@ int main(int argc, char** argv) {
 
     // test_application();
 
-    test_ui_renderer();
+    // test_ui_renderer();
     // test_load_font();
+    test_ui_context();
 
     return 0;
 }
