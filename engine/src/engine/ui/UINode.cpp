@@ -11,6 +11,11 @@ UINode::UINode(UIRect bounds) :
     // do nothing
 }
 
+UINode::~UINode() {
+    // TODO
+    assert(false);
+}
+
 void UINode::update(float dt) {
     update_impl(dt);
     for(auto& child : children) {
@@ -19,12 +24,12 @@ void UINode::update(float dt) {
 }
 
 void UINode::render(UIRenderer& renderer) {
-    // debug
-    if(true) {
-        auto draw_outline = [&](float inset, glm::vec4 color) {
-            std::cout << "DRAW OUTLINE" << std::endl;
+    renderer.push_origin(bounds.pos);
 
-            glm::vec2 pos = bounds.pos + glm::vec2(inset);
+    // debug
+    if(false) {
+        auto draw_outline = [&](float inset, glm::vec4 color) {
+            glm::vec2 pos = glm::vec2(inset);
             glm::vec2 dim = bounds.dim - glm::vec2(inset * 2.0f);
             if(dim.x < 1.0f || dim.y < 1.0f) return;   // node too small for this inset
 
@@ -38,32 +43,30 @@ void UINode::render(UIRenderer& renderer) {
             renderer.draw_line(c3, c0, 1, color);
         };
 
-        // debug background rect
+        // background rect
         if(parent.has_value()) {
-            renderer.draw_rect(bounds, {0.1, 0.1, 0.1, 1.0});
+            renderer.draw_rect({{0, 0}, bounds.dim}, {0.1, 0.1, 0.1, 1.0});
             draw_outline(0, {0.3, 0.3, 0.3, 1.0});
         }
 
-        // debug hovered, captured, focused rects
-        if(true) {
+        // hovered, captured, focused rects
+        if(parent.has_value()) {
             if(hovered)  draw_outline(0.0f, {1.0, 1.0, 0.0, 1.0});   // yellow,     outermost
             if(captured) draw_outline(2.0f, {1.0, 0.0, 1.0, 1.0});   // magenta,    middle
             if(focused)  draw_outline(4.0f, {0.0, 1.0, 1.0, 1.0});   // cyan,       innermost
         }
-
-        float time = std::chrono::duration<float>(std::chrono::steady_clock::now().time_since_epoch()).count();
-        float angle = time * 1.0f; // radians/sec
-        // renderer.draw_rect({{100 + angle * 50, 500}, {10, 10}}, {1, 1, 1, 1});
-        renderer.draw_rect({{100 + sin(angle) * 50, 100}, {100, 100}}, {1, 1, 1, 1});
     }
 
     render_impl(renderer);
     for(auto& child : children) {
         child->render(renderer);
     }
+    render_overlay_impl(renderer);
+
+    renderer.pop_origin();
 }
 
-glm::vec2 UINode::absolute_origin() {
+glm::vec2 UINode::get_absolute_origin() {
     glm::vec2 ret = {0, 0};
     UINode* ptr = this;
     while(true) {
@@ -72,6 +75,17 @@ glm::vec2 UINode::absolute_origin() {
         ptr = ptr->parent.value();
     }
     return ret;
+}
+
+glm::vec2 UINode::get_absolute_mouse_pos() {
+    assert(parent.has_value());
+    return parent.value()->get_absolute_mouse_pos();
+}
+
+void UINode::bring_to_front() {
+    if(parent.has_value()) {
+        parent.value()->bring_child_to_front(this);
+    }
 }
 
 std::optional<UINode*> UINode::hit_test(glm::vec2 pos) {
@@ -87,6 +101,22 @@ std::optional<UINode*> UINode::hit_test(glm::vec2 pos) {
         }
     }
     return std::nullopt;
+}
+
+void UINode::bring_child_to_front(UINode* node) {
+    // find child
+    int child_ind = -1;
+    for(int i = 0; i < children.size(); i++) {
+        if(children[i].get() == node) {
+            assert(child_ind == -1);
+            child_ind = i;
+        }
+    }
+    assert(child_ind != -1);
+
+    // place child at back of children list
+    assert(children.size() >= 1);
+    std::swap(children[child_ind], children[children.size() - 1]);
 }
 
 }

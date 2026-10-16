@@ -70,6 +70,7 @@ GLGraphicsDevice::GLGraphicsDevice() {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
     GLFWwindow* glfw_window = glfwCreateWindow(
         1,
         1,
@@ -267,8 +268,6 @@ void GLGraphicsDevice::gl_set_context(GLContext& context) {
     // set context
     glfwMakeContextCurrent(context.get_glfw_window());
     bound_context = &context;
-
-    std::cout << "SET CONTEXT : " << (uint64_t) context.get_glfw_window() << std::endl;
 }
 
 GLContext& GLGraphicsDevice::gl_get_context() {
@@ -416,7 +415,6 @@ GLTexture GLGraphicsDevice::gl_create_texture(
         case TextureDimension::Cube:
             glCreateTextures(GL_TEXTURE_CUBE_MAP, 1, &handle);
             glTextureStorage2D(handle, mip_levels, gl_internal_format, width, height);
-            std::cout << "Create cubemap : " << handle << std::endl;
             break;
         default:
             assert(false);
@@ -694,12 +692,6 @@ GLVertexArray GLGraphicsDevice::gl_create_vertex_array(GLContext& context) {
     gl_set_context(context);
     GLuint handle;
     glCreateVertexArrays(1, &handle);
-
-    std::cout
-        << "Created VAO: " << handle
-        << ", is vertex array: "
-        << (glIsVertexArray(handle) == GL_TRUE)
-        << ", context : " << (uint64_t) glfwGetCurrentContext() << std::endl;
 
     GLVertexArray va(*this, *bound_context, handle);
     return va;
@@ -1256,6 +1248,7 @@ std::unique_ptr<engine::graphics::Window> GLGraphicsDevice::create_window(
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
     GLFWwindow* glfw_window = glfwCreateWindow(
         width,
         height,

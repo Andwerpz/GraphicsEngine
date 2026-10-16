@@ -17,32 +17,53 @@ namespace engine::ui {
 // some rectangular region 
 
 class UINode {
-    using CursorPositionEvent = engine::app::CursorPositionEvent;
-    using MouseButtonEvent = engine::app::MouseButtonEvent;
-    using ScrollEvent = engine::app::ScrollEvent;
-    using KeyEvent = engine::app::KeyEvent;
     friend class UIContext;
 
 public:
-    UINode(UINode&&) = default;
-    ~UINode() = default;
+    UINode(UINode&&) = delete;
+    ~UINode();
+
+    UINode(const UINode&) = delete;
+    UINode& operator=(const UINode&) = delete;
+
+protected:
+    using CursorPositionEvent = engine::app::CursorPositionEvent;
+
+    using MouseButtonEvent = engine::app::MouseButtonEvent;
+    using MouseButton = engine::app::MouseButton;
+    using MouseButtonAction = engine::app::MouseButtonAction;
+    
+    using ScrollEvent = engine::app::ScrollEvent;
+
+    using KeyEvent = engine::app::KeyEvent;
+    using Key = engine::app::Key;
+    using KeyAction = engine::app::KeyAction;
+
+    UINode(UIRect bounds);
  
     void update(float dt);
     void render(UIRenderer& renderer);
 
     bool is_hovered()   const { return hovered; }
     bool is_captured()  const { return captured; }
+    bool is_active()    const { return active; }
     bool is_focused()   const { return focused; }
 
     // returns the top left bounds position of this node relative to the root origin
     // for now it just walks to the root, TODO figure out how to make this faster
-    glm::vec2 absolute_origin();
+    glm::vec2 get_absolute_origin();
 
-protected:
-    UINode(UIRect bounds);
+    // returns the absolute position of the mouse
+    // just walks up until it sees a UIRoot node, which should directly query the owning UIContext
+    virtual glm::vec2 get_absolute_mouse_pos();
 
     virtual void update_impl(float dt) {}
+
+    // this gets called before all the children get rendered
     virtual void render_impl(UIRenderer& renderer) {}
+
+    // this gets called after all the children get rendered
+    virtual void render_overlay_impl(UIRenderer& renderer) {}
 
     // adds the child to the node and returns a reference to it
     // this UINode takes ownership of the child
@@ -64,6 +85,10 @@ protected:
         return ref;
     }
 
+    // move this node to the foreground of its parent's children
+    // does nothing if this has no parent
+    void bring_to_front();
+
     // returns the foremost child that contains this position and is hit testable
     // returns None otherwise
     // pos is relative to this nodes bounds
@@ -81,17 +106,21 @@ protected:
     virtual bool on_scroll(const ScrollEvent&)                  { return false; }
     virtual bool on_key(const KeyEvent&)                        { return false; }
 
-    void on_mouse_enter()       { hovered  = true;  on_mouse_enter_impl(); }
-    void on_mouse_leave()       { hovered  = false; on_mouse_leave_impl(); }
-    void on_capture_gained()    { captured = true;  on_capture_gained_impl(); }
-    void on_capture_lost()      { captured = false; on_capture_lost_impl(); }
-    void on_focus_gained()      { focused  = true;  on_focus_gained_impl(); }
-    void on_focus_lost()        { focused  = false; on_focus_lost_impl(); }
+    void on_mouse_enter()           { hovered  = true;  on_mouse_enter_impl(); }
+    void on_mouse_leave()           { hovered  = false; on_mouse_leave_impl(); }
+    void on_capture_gained()        { captured = true;  on_capture_gained_impl(); }
+    void on_capture_lost()          { captured = false; on_capture_lost_impl(); }
+    void on_focus_enter()           { active   = true;  on_focus_enter_impl(); }
+    void on_focus_leave()           { active   = false; on_focus_leave_impl(); }
+    void on_focus_gained()          { focused  = true;  on_focus_gained_impl(); }
+    void on_focus_lost()            { focused  = false; on_focus_lost_impl(); }
 
     virtual void on_mouse_enter_impl()      {}
     virtual void on_mouse_leave_impl()      {}
     virtual void on_capture_gained_impl()   {}
     virtual void on_capture_lost_impl()     {}
+    virtual void on_focus_enter_impl()      {}
+    virtual void on_focus_leave_impl()      {}
     virtual void on_focus_gained_impl()     {}
     virtual void on_focus_lost_impl()       {}
 
@@ -115,9 +144,18 @@ protected:
     // set on_capture_gained(), unset on_capture_lost()
     bool captured = false;
 
+    // whether or not the focused node is in this nodes subtree
+    // focused implies active, but not the other way around
+    // set on_focus_enter(), unset on_focus_leave()
+    bool active = false;
+
     // whether or not keyboard input is directed towards this UINode
     // set on_focus_gained(), unset on_focus_lost()
     bool focused = false;
+
+private:
+    // places the given child in front of all other children of this node
+    void bring_child_to_front(UINode* child);
 };
 
 }

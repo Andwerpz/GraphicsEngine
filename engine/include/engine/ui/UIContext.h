@@ -6,12 +6,11 @@
 #include <engine/app/input/MouseButtonEvent.h>
 #include <engine/ui/UIRenderer.h>
 #include <engine/ui/UINode.h>
-#include <engine/ui/node/Container.h>
-
+#include <engine/ui/node/UIRoot.h>
 
 namespace engine::ui {
 
-// unifies UI graph and rendering
+// does input handling for a UI node graph
 
 class UIContext {
     using CursorPositionEvent = engine::app::CursorPositionEvent;
@@ -25,8 +24,12 @@ public:
         engine::graphics::RenderTarget& target
     );
 
-    Container& get_root() {
+    UIRoot& get_root() {
         return root;
+    }
+
+    glm::vec2 get_mouse_pos() {
+        return mouse_pos;
     }
 
     void update();
@@ -45,6 +48,11 @@ private:
     // parent node will always precede a child node
     std::vector<UINode*> hit_test(glm::vec2 pos);
 
+    // returns the list of UINodes forming the chain from the root to the given node, 
+    //   excluding the root
+    // if None is provided, then the returned chain will be empty
+    std::vector<UINode*> chain_to(std::optional<UINode*> node);
+
     // updates hover_chain with the current mouse_pos
     void update_hover_chain();
 
@@ -58,7 +66,7 @@ private:
     UIRenderer renderer;
 
     // root node managed by the UIContext
-    Container root;
+    UIRoot root;
 
     // last time update() was called on this UIContext
     // used to compute dt to give to root node

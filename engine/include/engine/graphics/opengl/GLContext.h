@@ -22,6 +22,10 @@ public:
         return (&device == &other.device) && (glfw_window == other.glfw_window);
     }
 
+    bool operator!=(const GLContext& other) const {
+        return !(*this == other);
+    }
+
 private:
     GLContext(
         GLGraphicsDevice& device,

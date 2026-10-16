@@ -167,7 +167,15 @@ UIRenderer::UIRenderer(
 }
 
 void UIRenderer::draw_rect(UIRect rect, glm::vec4 color) {
+    rect.pos += get_origin();
     commands.push_back(DrawRect {rect, color});
+}
+
+void UIRenderer::draw_textured_rect(UIRect rect, Texture& texture) {
+    rect.pos += get_origin();
+    uint64_t texture_id = texture.get_texture_id();
+    textures.insert({texture_id, &texture});
+    commands.push_back(DrawTexturedRect {rect, {{0, 0}, {1, 1}}, texture_id});
 }
 
 void UIRenderer::draw_line(
@@ -176,7 +184,21 @@ void UIRenderer::draw_line(
     float width, 
     glm::vec4 color
 ) {
+    start += get_origin();
+    end += get_origin();
     commands.push_back(DrawLine {start, end, width, color});
+}
+
+void UIRenderer::draw_rect_outline(UIRect rect, glm::vec4 color, float inset) {
+    rect.dim = rect.dim - glm::vec2(inset * 2.0f);
+    glm::vec2 c0 = rect.pos;
+    glm::vec2 c1 = c0;  c1.x += rect.dim.x - 1;
+    glm::vec2 c2 = c1;  c2.y += rect.dim.y - 1;
+    glm::vec2 c3 = c2;  c3.x -= rect.dim.x - 1;
+    draw_line(c0, c1, 1, color);
+    draw_line(c1, c2, 1, color);
+    draw_line(c2, c3, 1, color);
+    draw_line(c3, c0, 1, color);
 }
 
 void UIRenderer::draw_text(
@@ -184,7 +206,7 @@ void UIRenderer::draw_text(
     glm::vec2 start, 
     Font& font
 ) {
-    // create font atlas texture
+    // get font atlas texture
     Image& atlas = font.get_atlas();
     uint64_t asset_id = atlas.get_asset_id();
     if(!asset_textures.contains(asset_id)) {
@@ -199,9 +221,12 @@ void UIRenderer::draw_text(
         texture->upload_image(atlas);
         asset_textures.emplace(asset_id, std::move(texture));
     }
+    Texture& atlas_texture = *asset_textures.at(asset_id);
+    uint64_t texture_id = atlas_texture.get_texture_id();
+    textures.insert({texture_id, &atlas_texture});
 
     // rect commands
-    glm::vec2 pen = start;
+    glm::vec2 pen = start + get_origin();
     for(int i = 0; i < text.size(); i++) {
         char c = text[i];
         Font::Glyph& glyph = font.get_glyph(c);
@@ -220,18 +245,36 @@ void UIRenderer::draw_text(
 
         commands.push_back(DrawTexturedRect {
             {pos, dim}, {uv_pos, uv_dim},
-            asset_id
+            texture_id
         });
         
         pen.x += glyph.advance_x;
     }
 }
 
+void UIRenderer::push_origin(glm::vec2 origin) {
+    origin_stack.push(get_origin() + origin);
+}
+
+void UIRenderer::pop_origin() {
+    assert(origin_stack.size() != 0);
+    if(origin_stack.size() == 1) {
+        engine::utils::throw_error("cannot pop base origin");
+    }
+    origin_stack.pop();
+}
+
+glm::vec2 UIRenderer::get_origin() {
+    assert(origin_stack.size() >= 1);
+    return origin_stack.top();
+}
+
 void UIRenderer::push_clip(UIRect rect) {
-    assert(clip_stack.size() >= 1);
-    UIRect old_rect = clip_stack.top();
-    
+    // new rect is relative to current origin
+    rect.pos += get_origin();
+
     // intersect along both axes
+    UIRect old_rect = get_clip();
     glm::vec2 min = glm::max(rect.pos, old_rect.pos);
     glm::vec2 max = glm::min(rect.pos + rect.dim, old_rect.pos + old_rect.dim);
     rect = UIRect {min, max - min};
@@ -254,6 +297,11 @@ void UIRenderer::pop_clip() {
     commands.push_back(SetClip {clip_stack.top()});
 }
 
+UIRect UIRenderer::get_clip() {
+    assert(clip_stack.size() >= 1);
+    return clip_stack.top();
+}
+
 void UIRenderer::render() {
     // buffer for uploading data to the instance buffer
     assert(INSTANCE_BUFFER_SIZE % sizeof(float) == 0);
@@ -266,7 +314,6 @@ void UIRenderer::render() {
     uint64_t gpu_instance_ptr = 0;
     std::optional<Texture*> bound_texture = std::nullopt;
 
-    std::cout << "START RENDER : " << commands.size() << std::endl;
     auto flush_instances = [&]() {
         if(cpu_instance_cnt == 0) return;
 
@@ -293,8 +340,6 @@ void UIRenderer::render() {
 
         // render
         rect_invocation->draw(2, cpu_instance_cnt, 0, gpu_instance_ptr);
-
-        std::cout << "FLUSH : " << cpu_instance_cnt << std::endl;
 
         // reset command batch state
         gpu_buf_ptr += cpu_buf_upload_sz;
@@ -415,15 +460,15 @@ void UIRenderer::render() {
             DrawTexturedRect cmd = std::get<DrawTexturedRect>(_cmd);
             UIRect vertex_rect = cmd.vertex_rect;
             UIRect uv_rect = cmd.uv_rect;
-            uint64_t asset_id = cmd.asset_id;
+            uint64_t texture_id = cmd.texture_id;
 
             // bind texture
-            assert(asset_textures.contains(asset_id));
-            auto& texture = asset_textures.at(asset_id);
+            assert(textures.contains(texture_id));
+            Texture* texture = textures.at(texture_id);
             if(bound_texture.has_value() && texture->get_texture_id() != bound_texture.value()->get_texture_id()) {
                 flush_instances();
             }
-            bound_texture = texture.get();
+            bound_texture = texture;
 
             // write instance
             glm::mat4 transform(
@@ -449,6 +494,10 @@ void UIRenderer::render() {
 
 void UIRenderer::reset() {
     commands.clear();
+    while(origin_stack.size() != 0) {
+        origin_stack.pop();
+    }
+    origin_stack.push({0, 0});
     while(clip_stack.size() != 0) {
         clip_stack.pop();
     }

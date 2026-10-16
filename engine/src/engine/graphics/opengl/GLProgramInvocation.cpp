@@ -186,6 +186,22 @@ void GLRenderingProgramInvocation::draw_impl(
         }
     }
 
+    // GL_UPPER_LEFT / GL_LOWER_LEFT chooses whether +y or -y is treated as row 0
+    // GL_UPPER_LEFT maps +y to row 0, GL_LOWER_LEFT maps -y to row 0
+    // when we're rendering to a texture, we can keep the convention that the top row is the first row
+    //   this matches image uploads and the high level API top left origin convention
+    // when we're rendering to a window, the default framebuffer will always place row 0 at the bottom of 
+    //   the screen, so we're forced to map -y to row 0 
+    if(dynamic_cast<GLTextureRenderTarget*>(&(render_target.value().get())) != nullptr) {
+        // rendering to texture
+        glClipControl(GL_UPPER_LEFT, GL_NEGATIVE_ONE_TO_ONE);
+    }
+    else if(dynamic_cast<GLWindowRenderTarget*>(&(render_target.value().get())) != nullptr) {
+        // rendering to display
+        glClipControl(GL_LOWER_LEFT, GL_NEGATIVE_ONE_TO_ONE);
+    }
+    else assert(false);
+
     // misc settings 
     // TODO move these raw OpenGL calls into GLGraphicsDevice where the context is managed
     glEnable(GL_BLEND);

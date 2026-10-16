@@ -13,7 +13,7 @@ UIContext::UIContext(
     engine::graphics::RenderTarget& target
 ) :
     renderer(device, target),
-    root({{0, 0}, {target.get_width(), target.get_height()}})
+    root(*this, {{0, 0}, {target.get_width(), target.get_height()}})
 {
     auto current_time = std::chrono::steady_clock::now();
     auto current_time_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(current_time.time_since_epoch());
@@ -49,7 +49,7 @@ void UIContext::on_cursor_position(const CursorPositionEvent& ev) {
     // when captured, mouse input only goes to captured node
     if(captured_node.has_value()) {
         CursorPositionEvent _ev = ev;
-        _ev.pos -= captured_node.value()->absolute_origin();
+        _ev.pos -= captured_node.value()->get_absolute_origin();
         captured_node.value()->on_cursor_position(_ev);
         return;
     }
@@ -94,6 +94,9 @@ void UIContext::on_mouse_button(const MouseButtonEvent& ev) {
             break;
         }
         case MouseButtonAction::Release: {
+            // update hover chain, it was frozen during mouse drag
+            update_hover_chain();
+
             // send mouse release to captured node
             if(captured_node.has_value()) {
                 captured_node.value()->on_mouse_button(ev);
@@ -101,9 +104,6 @@ void UIContext::on_mouse_button(const MouseButtonEvent& ev) {
 
             // reset captured node
             update_captured_node();
-
-            // update hover chain, it was frozen during mouse drag
-            update_hover_chain();
             break;
         }
         default:
@@ -150,6 +150,20 @@ std::vector<UINode*> UIContext::hit_test(glm::vec2 pos) {
     return res;
 }
 
+std::vector<UINode*> UIContext::chain_to(std::optional<UINode*> node) {
+    std::vector<UINode*> chain;
+    if(!node.has_value()) return chain;
+    UINode* ptr = node.value();
+    while(ptr->parent.has_value()) {
+        if(ptr == &root) break;
+        chain.push_back(ptr);
+        ptr = ptr->parent.value();
+    }
+    assert(ptr == &root);
+    std::reverse(chain.begin(), chain.end());
+    return chain;
+}
+
 void UIContext::update_hover_chain() {
     // figure out length of shared prefix
     std::vector<UINode*> new_chain = hit_test(mouse_pos);
@@ -180,9 +194,31 @@ void UIContext::update_captured_node(std::optional<UINode*> node) {
 
 void UIContext::update_focused_node(std::optional<UINode*> node) {
     if(node == focused_node) return;
-    if(focused_node.has_value()) focused_node.value()->on_focus_lost();
-    if(node.has_value()) node.value()->on_focus_gained();
-    focused_node = node;
-}
 
+    // figure out length of shared prefix
+    std::vector<UINode*> old_chain = chain_to(focused_node);
+    std::vector<UINode*> new_chain = chain_to(node);
+    int common = 0;
+    while(common < old_chain.size() && common < new_chain.size()) {
+        if(old_chain[common] != new_chain[common]) break;
+        common ++;
+    }
+
+    // focus lost and leave events
+    if(focused_node.has_value()) {
+        focused_node.value()->on_focus_lost();
+    }
+    for(int i = (int) old_chain.size() - 1; i >= common; i--) {
+        old_chain[i]->on_focus_leave();
+    }
+
+    // focus enter and gained events
+    focused_node = node;
+    for(int i = common; i < new_chain.size(); i++) {
+        new_chain[i]->on_focus_enter();
+    }
+    if(node.has_value()) {
+        node.value()->on_focus_gained();
+    }
+}
 }

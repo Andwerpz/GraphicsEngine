@@ -51,14 +51,6 @@ private:
     // will center the rendered text vertically/horizontally within the bounds 
     bool vertical_centering = true;
     bool horizontal_centering = true;
-
-    void on_mouse_enter_impl() override {
-        std::cout << "MOUSE ENTER" << std::endl;
-    }
-
-    void on_mouse_leave_impl() override {
-        std::cout << "MOUSE LEAVE" << std::endl;
-    }
 };
 
 }

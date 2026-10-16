@@ -65,6 +65,9 @@ public:
 
     // draws an axis aligned rectangle with solid color
     void draw_rect(UIRect rect, glm::vec4 color);
+    
+    // draws an axis aligned rectangle with the given texture
+    void draw_textured_rect(UIRect rect, Texture& texture);
 
     // draws a line starting from start and ending at end
     // the end pixels are included 
@@ -72,6 +75,11 @@ public:
     // TODO make all lines of width 1 pixel perfect
     //   look into bresenham line drawing algorithm
     void draw_line(glm::vec2 start, glm::vec2 end, float width, glm::vec4 color);
+
+    // draws 4 axis-aligned lines outlining the given rect
+    // the outline is drawn on the interior of the given rect
+    // positive inset draws the outline rect smaller within the given rect
+    void draw_rect_outline(UIRect rect, glm::vec4 color, float inset = 0.0f);
 
     // draws the given text
     // start gives the initial position of the baseline pointer 
@@ -84,12 +92,23 @@ public:
     // void draw_blur();
     // void draw_drop_shadow();
 
+    // push/pop origin from the origin stack
+    // new origins are interpreted as relative to the current origin
+    // all draw commands will be relative to the current origin
+    void push_origin(glm::vec2 origin);
+    void pop_origin();
+
+    // returns the current origin in absolute space
+    glm::vec2 get_origin();
+
     // push/pop from the clip stack 
-    // clip rectangles are always absolute
+    // new clip rectangles are interpreted as relative to the current origin
     // the new clip region is the intersection between rect and the old clip region
-    // these should also turn into 'commands'
     void push_clip(UIRect rect);
     void pop_clip();
+
+    // returns the current clip rect in absolute space
+    UIRect get_clip();
 
     // render to target using commands
     void render();
@@ -107,6 +126,9 @@ private:
     // clip rectangle stack
     std::stack<UIRect> clip_stack;
 
+    // origin stack
+    std::stack<glm::vec2> origin_stack;
+
     // list of commands so far
     struct SetClip {
         UIRect rect;
@@ -123,7 +145,7 @@ private:
     struct DrawTexturedRect {
         UIRect vertex_rect;
         UIRect uv_rect;
-        uint64_t asset_id;
+        uint64_t texture_id;
     };
     using Command = std::variant<
         SetClip,
@@ -132,6 +154,10 @@ private:
         DrawTexturedRect
     >;
     std::vector<Command> commands;
+
+    // mapping texture_id -> texture
+    // these textures are the ones used in the current render
+    std::map<uint64_t, Texture*> textures;
 
     // rectangle rendering pipeline
     const uint64_t INSTANCE_BUFFER_SIZE = (1 << 16);
@@ -145,7 +171,10 @@ private:
     std::unique_ptr<Sampler> default_sampler;
 
     // mapping asset_id -> cached texture
+    // these cached textures are managed by UIRenderer and are persistent across renders
     std::map<uint64_t, std::unique_ptr<Texture>> asset_textures;
+
+
 };
 
 }

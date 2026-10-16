@@ -20,9 +20,9 @@ void Label::update_impl(float dt) {
 
 void Label::render_impl(UIRenderer& renderer) {
     // by default, left and top align the text
-    glm::vec2 pen = bounds.pos;
+    glm::vec2 pen = {0, 0};
     pen.y += font.get_ascent();
-    glm::vec2 center = bounds.pos + bounds.dim / 2.0f;
+    glm::vec2 center = bounds.dim / 2.0f;
 
     // vertical alignment
     if(vertical_centering) {
@@ -38,7 +38,7 @@ void Label::render_impl(UIRenderer& renderer) {
     renderer.draw_text(text, pen, font);
 
     // font debug lines
-    if(true) {
+    if(false) {
         float ascent  = font.get_ascent();
         float descent = font.get_descent();
 
