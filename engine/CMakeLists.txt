@@ -102,3 +102,7 @@ target_link_libraries(engine
         assimp
         freetype
 )
+
+# engine resources
+include(cmake/EmbedResources.cmake)
+embed_resources(engine "${CMAKE_CURRENT_SOURCE_DIR}/res")

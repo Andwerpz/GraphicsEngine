@@ -7,10 +7,9 @@ namespace engine::ui {
 
 class Container : public UINode {
 public:
-    Container(UIRect bounds) : UINode(bounds) {}
+    Container(UIContext& context, UIRect bounds) : UINode(context, bounds) {}
 
     // make adding children public
-    using UINode::add_child;
     using UINode::emplace_child;
 };
 

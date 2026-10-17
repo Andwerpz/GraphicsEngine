@@ -15,6 +15,7 @@ class Button : public UINode {
 
 public:
     Button(
+        UIContext& context,
         std::function<void()> callback,
         UIRect bounds
     );

@@ -1,5 +1,6 @@
 #include <engine/graphics/GraphicsDevice.h>
-#include <engine/utils/error.h>
+#include <engine/util/error.h>
+#include <engine/util/file.h>
 
 #include <fstream>
 
@@ -7,16 +8,7 @@ namespace engine::graphics {
 
 std::unique_ptr<Shader> GraphicsDevice::create_shader(const fs::path& source_path) {
     // load source code
-    std::string source_code;
-    {
-        std::ifstream file(source_path, std::ios::in | std::ios::binary);
-        if(!file) {
-            engine::utils::throw_error("Cannot open file : " + source_path.string());
-        }
-        std::ostringstream ss;
-        ss << file.rdbuf();
-        source_code = ss.str();
-    }
+    std::string source_code = engine::util::load_text_file(source_path);
 
     // infer shader stage via extension
     ShaderStage shader_stage;
@@ -30,7 +22,7 @@ std::unique_ptr<Shader> GraphicsDevice::create_shader(const fs::path& source_pat
         shader_stage = ShaderStage::Compute;
     }
     else {
-        engine::utils::throw_error("Unknown shader extension: " + source_path.extension().string());
+        engine::util::throw_error("Unknown shader extension: " + source_path.extension().string());
     }
 
     // create shader

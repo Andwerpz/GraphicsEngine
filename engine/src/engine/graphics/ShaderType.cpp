@@ -1,5 +1,5 @@
 #include <engine/graphics/ShaderType.h>
-#include <engine/utils/error.h>
+#include <engine/util/error.h>
 
 #include <memory>
 #include <cassert>

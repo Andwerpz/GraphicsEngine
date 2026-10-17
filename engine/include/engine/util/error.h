@@ -3,7 +3,7 @@
 #include <stdexcept>
 #include <string>
 
-namespace engine::utils {
+namespace engine::util {
 
 [[noreturn]]
 inline void throw_error(

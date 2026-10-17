@@ -1,7 +1,7 @@
 #include <engine/graphics/opengl/GLSampler.h>
 #include <engine/graphics/opengl/GLGraphicsDevice.h>
 #include <cassert>
-#include <engine/utils/error.h>
+#include <engine/util/error.h>
 
 namespace engine::graphics::opengl {
 

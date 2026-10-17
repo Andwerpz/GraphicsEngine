@@ -3,9 +3,10 @@
 namespace engine::ui {
 
 Viewport::Viewport(
+    UIContext& context,
     GraphicsDevice& device,
     UIRect bounds
-) : UINode(bounds),
+) : UINode(context, bounds),
     device(device)
 {
     // initialize render target

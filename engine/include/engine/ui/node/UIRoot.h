@@ -12,13 +12,7 @@ public:
     UIRoot(
         UIContext& context,
         UIRect bounds
-    ) : Container(bounds), context(context) {}
-
-protected:
-    glm::vec2 get_absolute_mouse_pos() override;
-
-    // owning UIContext
-    UIContext& context;
+    ) : Container(context, bounds) {}
 };
 
 }

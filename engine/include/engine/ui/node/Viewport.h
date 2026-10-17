@@ -18,6 +18,7 @@ class Viewport : public UINode {
 
 public:
     Viewport(
+        UIContext& context,
         GraphicsDevice& device,
         UIRect bounds
     );

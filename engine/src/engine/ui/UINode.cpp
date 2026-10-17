@@ -1,10 +1,12 @@
 #include <engine/ui/UINode.h>
 #include <engine/ui/UIRenderer.h>
+#include <engine/ui/UIContext.h>
 #include <iostream>
 
 namespace engine::ui {
 
-UINode::UINode(UIRect bounds) :
+UINode::UINode(UIContext& context, UIRect bounds) :
+    context(context),
     parent(std::nullopt),
     bounds(bounds)
 {
@@ -13,6 +15,7 @@ UINode::UINode(UIRect bounds) :
 
 UINode::~UINode() {
     // TODO
+    // this should probably notify the owning context that it has died
     assert(false);
 }
 
@@ -78,8 +81,7 @@ glm::vec2 UINode::get_absolute_origin() {
 }
 
 glm::vec2 UINode::get_absolute_mouse_pos() {
-    assert(parent.has_value());
-    return parent.value()->get_absolute_mouse_pos();
+    return context.get_mouse_pos();
 }
 
 void UINode::bring_to_front() {
@@ -116,7 +118,9 @@ void UINode::bring_child_to_front(UINode* node) {
 
     // place child at back of children list
     assert(children.size() >= 1);
-    std::swap(children[child_ind], children[children.size() - 1]);
+    std::unique_ptr<UINode> child = std::move(children[child_ind]);
+    children.erase(children.begin() + child_ind);
+    children.push_back(std::move(child));
 }
 
 }

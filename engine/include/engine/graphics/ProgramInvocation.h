@@ -68,10 +68,19 @@ public:
     template<typename T>
     UniformToken<T> get_uniform(std::string_view addr);
 
-    // use generated tokens to set uniform values 
+    // use generated tokens to set uniform values
+    void set_uniform(UniformToken<int> token, int val);
     void set_uniform(UniformToken<float> token, float val);
+    void set_uniform(UniformToken<glm::vec2> token, glm::vec2 val);
     void set_uniform(UniformToken<glm::vec3> token, glm::vec3 val);
     void set_uniform(UniformToken<glm::mat4> token, glm::mat4 val);
+
+    // generate a token and set the uniform
+    // convenience method for init time
+    template<typename T>
+    void set_uniform(std::string_view addr, T val) {
+        set_uniform(get_uniform<T>(addr), val);
+    }
 
     // you should only be able to invoke after validating
     // relatively expensive configuration checks should go here

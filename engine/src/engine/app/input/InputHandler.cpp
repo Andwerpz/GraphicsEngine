@@ -2,7 +2,7 @@
 #include <engine/app/TaskLoop.h>
 #include <engine/graphics/opengl/GLWindow.h>
 #include <engine/graphics/opengl/GLContext.h>
-#include <engine/utils/error.h>
+#include <engine/util/error.h>
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
@@ -112,7 +112,7 @@ void InputHandler::set_cursor_position_callback(
 ) {
     // make sure we're managing this window
     if(!contains(window)) {
-        engine::utils::throw_error("input handler needs to manage window before adding callback");
+        engine::util::throw_error("input handler needs to manage window before adding callback");
     }
     
     // add callback
@@ -125,7 +125,7 @@ void InputHandler::set_mouse_button_callback(
 ) {
     // make sure we're managing this window
     if(!contains(window)) {
-        engine::utils::throw_error("input handler needs to manage window before adding callback");
+        engine::util::throw_error("input handler needs to manage window before adding callback");
     }
 
     // add callback
@@ -138,7 +138,7 @@ void InputHandler::set_scroll_callback(
 ) {
     // make sure we're managing this window
     if(!contains(window)) {
-        engine::utils::throw_error("input handler needs to manage window before adding callback");
+        engine::util::throw_error("input handler needs to manage window before adding callback");
     }
 
     // add callback
@@ -151,7 +151,7 @@ void InputHandler::set_key_callback(
 ) {
     // make sure we're managing this window
     if(!contains(window)) {
-        engine::utils::throw_error("input handler needs to manage window before adding callback");
+        engine::util::throw_error("input handler needs to manage window before adding callback");
     }
 
     // add callback

@@ -1,6 +1,6 @@
 #include <engine/graphics/opengl/GLTexture.h>
 #include <engine/graphics/opengl/GLGraphicsDevice.h>
-#include <engine/utils/error.h>
+#include <engine/util/error.h>
 
 #include <cstring>
 #include <cassert>
@@ -46,19 +46,19 @@ void GLTexture::upload_data(
     uint32_t cube_face
 ) {
     if(data == nullptr) {
-        engine::utils::throw_error("data cannot be nullptr");
+        engine::util::throw_error("data cannot be nullptr");
     }
     if(mip_level >= get_mip_levels()) {
-        engine::utils::throw_error("mip_level out of range");
+        engine::util::throw_error("mip_level out of range");
     }
     if(get_dimension() == TextureDimension::Cube) {
         if(cube_face >= 6) {
-            engine::utils::throw_error("cube_face should be < 6");
+            engine::util::throw_error("cube_face should be < 6");
         }
     }
     else {
         if(cube_face > 0) {
-            engine::utils::throw_error("cube_face should be 0 for non-cubemap texture");
+            engine::util::throw_error("cube_face should be 0 for non-cubemap texture");
         }
     }
 
@@ -129,19 +129,19 @@ void GLTexture::retrieve_data(
     uint32_t cube_face
 ) {
     if(data == nullptr) {
-        engine::utils::throw_error("data cannot be nullptr");
+        engine::util::throw_error("data cannot be nullptr");
     }
     if(mip_level >= get_mip_levels()) {
-        engine::utils::throw_error("mip_level out of range");
+        engine::util::throw_error("mip_level out of range");
     }
     if(get_dimension() == TextureDimension::Cube) {
         if(cube_face >= 6) {
-            engine::utils::throw_error("cube_face should be < 6");
+            engine::util::throw_error("cube_face should be < 6");
         }
     }
     else {
         if(cube_face > 0) {
-            engine::utils::throw_error("cube_face should be 0 for non-cubemap texture");
+            engine::util::throw_error("cube_face should be 0 for non-cubemap texture");
         }
     }
 

@@ -1,5 +1,5 @@
 #include <engine/graphics/opengl/GLGraphicsDevice.h>
-#include <engine/utils/error.h>
+#include <engine/util/error.h>
 
 #include <stdexcept>
 #include <cassert>
@@ -60,7 +60,7 @@ GLGraphicsDevice::GLGraphicsDevice() {
     // initialize glfw
     glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_X11);
     if(!glfwInit()) {
-        engine::utils::throw_error("Failed to initialize GLFW");
+        engine::util::throw_error("Failed to initialize GLFW");
     }
     
     // create opengl graphics device by creating hidden GLFW window
@@ -80,7 +80,7 @@ GLGraphicsDevice::GLGraphicsDevice() {
     );
     if(glfw_window == nullptr) {
         glfwTerminate();
-        engine::utils::throw_error("Failed to create headless GLFW window");
+        engine::util::throw_error("Failed to create headless GLFW window");
     }
     glfwMakeContextCurrent(glfw_window);
 
@@ -88,7 +88,7 @@ GLGraphicsDevice::GLGraphicsDevice() {
     if(gladLoadGL() == 0) {
         glfwDestroyWindow(glfw_window);
         glfwTerminate();
-        engine::utils::throw_error("Failed to initialize GLAD");
+        engine::util::throw_error("Failed to initialize GLAD");
     }
 
     std::cout << "OpenGL Renderer : " << glGetString(GL_RENDERER) << std::endl;
@@ -236,7 +236,7 @@ void GLGraphicsDevice::gl_get_error() {
                 message = "UNKNOWN_OPENGL_ERROR";
                 break;
         }
-        engine::utils::throw_error(
+        engine::util::throw_error(
             std::string("OpenGL error : ") +
             message + " (0x" +
             [&]() {
@@ -332,7 +332,7 @@ GLBuffer GLGraphicsDevice::gl_create_buffer(
     const void* data
 ) {
     if(size == 0) {
-        engine::utils::throw_error("Buffer size must be non-zero");
+        engine::util::throw_error("Buffer size must be non-zero");
     }
 
     // create buffer
@@ -367,28 +367,28 @@ GLTexture GLGraphicsDevice::gl_create_texture(
     uint32_t mip_levels
 ) {
     if(width == 0 || height == 0 || depth == 0) {
-        engine::utils::throw_error("Texture dimensions must be non-zero");
+        engine::util::throw_error("Texture dimensions must be non-zero");
     }
     if(mip_levels == 0) {
-        engine::utils::throw_error("Texture mip_levels must be non-zero");
+        engine::util::throw_error("Texture mip_levels must be non-zero");
     }
 
     switch(type) {
         case TextureDimension::D1:
             if(height != 1 || depth != 1) {
-                engine::utils::throw_error("1D Texture needs to have unit height and depth");
+                engine::util::throw_error("1D Texture needs to have unit height and depth");
             }
             break;
         case TextureDimension::D2:
             if(depth != 1) {
-                engine::utils::throw_error("2D Texture needs to have unit depth");
+                engine::util::throw_error("2D Texture needs to have unit depth");
             }
             break;
         case TextureDimension::D3:
             break;
         case TextureDimension::Cube:
             if(depth != 1) {
-                engine::utils::throw_error("Cubemap Texture needs to have unit depth");
+                engine::util::throw_error("Cubemap Texture needs to have unit depth");
             }
             break;
         default:
@@ -600,7 +600,7 @@ GLShader GLGraphicsDevice::gl_create_shader(
             log.data()
         );
         glDeleteShader(handle);
-        engine::utils::throw_error("SPIR-V shader compilation failed :\n" + log);
+        engine::util::throw_error("SPIR-V shader compilation failed :\n" + log);
     }
 
     GLShader shader(
@@ -618,10 +618,10 @@ GLRenderingProgram GLGraphicsDevice::gl_create_rendering_program(
     PrimitiveTopology primitive_topology
 ) {
     if(vertex_shader.get_stage() != ShaderStage::Vertex) {
-        engine::utils::throw_error("Expect vertex_shader to be of type Vertex");
+        engine::util::throw_error("Expect vertex_shader to be of type Vertex");
     }
     if(fragment_shader.get_stage() != ShaderStage::Fragment) {
-        engine::utils::throw_error("Expect fragment_shader to be of type Fragment");
+        engine::util::throw_error("Expect fragment_shader to be of type Fragment");
     }
 
     // create program
@@ -641,7 +641,7 @@ GLRenderingProgram GLGraphicsDevice::gl_create_rendering_program(
         std::string log(log_size, '\0');
         glGetProgramInfoLog(handle, log_size, nullptr, log.data());
         glDeleteProgram(handle);
-        engine::utils::throw_error("Graphics program linking failed :\n" + log);
+        engine::util::throw_error("Graphics program linking failed :\n" + log);
     }
 
     GLRenderingProgram program(
@@ -658,7 +658,7 @@ GLComputeProgram GLGraphicsDevice::gl_create_compute_program(
     GLShader& compute_shader
 ) {
     if(compute_shader.get_stage() != ShaderStage::Compute) {
-        engine::utils::throw_error("Expect compute_shader to be of type Compute");
+        engine::util::throw_error("Expect compute_shader to be of type Compute");
     }
 
     // create program
@@ -677,7 +677,7 @@ GLComputeProgram GLGraphicsDevice::gl_create_compute_program(
         std::string log(log_size, '\0');
         glGetProgramInfoLog(handle, log_size, nullptr, log.data());
         glDeleteProgram(handle);
-        engine::utils::throw_error("Compute program linking failed :\n" + log);
+        engine::util::throw_error("Compute program linking failed :\n" + log);
     }
 
     GLComputeProgram program(
@@ -774,18 +774,18 @@ void GLGraphicsDevice::gl_bind_buffer(GLContext& context, uint32_t slot, GLBuffe
     // should only be able to bind uniform buffers and storage buffers
     if(buf.get_usage() == BufferUsage::Uniform) {
         if(slot >= state.MAX_UNIFORM_BUFFER_BINDINGS) {
-            engine::utils::throw_error("bind_buffer slot out of range, should be less than " + std::to_string(state.MAX_UNIFORM_BUFFER_BINDINGS));
+            engine::util::throw_error("bind_buffer slot out of range, should be less than " + std::to_string(state.MAX_UNIFORM_BUFFER_BINDINGS));
         }
         state.bound_uniform_buffers[slot] = &buf;
     }
     else if(buf.get_usage() == BufferUsage::Storage) {
         if(slot >= state.MAX_STORAGE_BUFFER_BINDINGS) {
-            engine::utils::throw_error("bind_buffer slot out of range, should be less than " + std::to_string(state.MAX_STORAGE_BUFFER_BINDINGS));
+            engine::util::throw_error("bind_buffer slot out of range, should be less than " + std::to_string(state.MAX_STORAGE_BUFFER_BINDINGS));
         }
         state.bound_storage_buffers[slot] = &buf;
     }
     else {
-        engine::utils::throw_error("bind_buffer should only be able to bind uniform and storage buffers");
+        engine::util::throw_error("bind_buffer should only be able to bind uniform and storage buffers");
     }
 
     // bind buffer to slot
@@ -810,7 +810,7 @@ void GLGraphicsDevice::gl_bind_texture(GLContext& context, uint32_t slot, GLText
 
     // make sure slot is in range
     if(slot >= state.MAX_TEXTURE_BINDINGS) {
-        engine::utils::throw_error("bind_texture slot out of range, should be less than " + std::to_string(state.MAX_TEXTURE_BINDINGS));
+        engine::util::throw_error("bind_texture slot out of range, should be less than " + std::to_string(state.MAX_TEXTURE_BINDINGS));
     }
     state.bound_textures[slot] = &tex;
     
@@ -825,7 +825,7 @@ void GLGraphicsDevice::gl_bind_sampler(GLContext& context, uint32_t slot, GLSamp
 
     // make sure slot is in range and unbound
     if(slot >= state.MAX_TEXTURE_BINDINGS) {
-        engine::utils::throw_error("bind_sampler slot out of range, should be less than " + std::to_string(state.MAX_TEXTURE_BINDINGS));
+        engine::util::throw_error("bind_sampler slot out of range, should be less than " + std::to_string(state.MAX_TEXTURE_BINDINGS));
     }
     state.bound_samplers[slot] = &sampler;
 
@@ -881,10 +881,10 @@ void GLGraphicsDevice::gl_set_viewport(
     float max_z
 ) {
     if(width <= 0.0f || height <= 0.0f) {
-        engine::utils::throw_error("Viewport width and height must be positive");
+        engine::util::throw_error("Viewport width and height must be positive");
     }
     if(min_z > max_z) {
-        engine::utils::throw_error("Viewport min_z must not be greater than max_z");
+        engine::util::throw_error("Viewport min_z must not be greater than max_z");
     }
 
     gl_set_context(context);
@@ -903,7 +903,7 @@ void GLGraphicsDevice::gl_set_scissor(
     uint32_t height
 ) {
     if(width == 0 || height == 0) {
-        engine::utils::throw_error("Scissor width and height must be non-zero");
+        engine::util::throw_error("Scissor width and height must be non-zero");
     }
 
     // TODO
@@ -949,7 +949,7 @@ void GLGraphicsDevice::gl_draw_elements(
     assert(state.bound_framebuffer.value() != nullptr);
     assert(state.bound_rendering_program.value() != nullptr);
     if(!state.bound_vertex_array.value()->has_index_buffer()) {
-        engine::utils::throw_error("gl_draw_elements expects the bound vertex array to have a bound index buffer");
+        engine::util::throw_error("gl_draw_elements expects the bound vertex array to have a bound index buffer");
     }
 
     PrimitiveTopology topology = state.bound_rendering_program.value()->get_primitive_topology();
@@ -1015,7 +1015,7 @@ void GLGraphicsDevice::gl_draw_elements_instanced(
     assert(state.bound_framebuffer.value() != nullptr);
     assert(state.bound_rendering_program.value() != nullptr);
     if(!state.bound_vertex_array.value()->has_index_buffer()) {
-        engine::utils::throw_error("gl_draw_elements_instanced expects the bound vertex array to have a bound index buffer");
+        engine::util::throw_error("gl_draw_elements_instanced expects the bound vertex array to have a bound index buffer");
     }
     
     PrimitiveTopology topology = state.bound_rendering_program.value()->get_primitive_topology();
@@ -1131,10 +1131,10 @@ std::unique_ptr<engine::graphics::RenderingProgram> GLGraphicsDevice::create_ren
     PrimitiveTopology primitive_topology
 ) {
     if(!dynamic_cast<engine::graphics::opengl::GLShader*>(&_vertex)) {
-        engine::utils::throw_error("create_rendering_program vertex shader needs to be a GLShader");
+        engine::util::throw_error("create_rendering_program vertex shader needs to be a GLShader");
     }
     if(!dynamic_cast<engine::graphics::opengl::GLShader*>(&_fragment)) {
-        engine::utils::throw_error("create_rendering_program fragment shader needs to be a GLShader");
+        engine::util::throw_error("create_rendering_program fragment shader needs to be a GLShader");
     }
     engine::graphics::opengl::GLShader& vertex = dynamic_cast<engine::graphics::opengl::GLShader&>(_vertex);
     engine::graphics::opengl::GLShader& fragment = dynamic_cast<engine::graphics::opengl::GLShader&>(_fragment);
@@ -1143,10 +1143,10 @@ std::unique_ptr<engine::graphics::RenderingProgram> GLGraphicsDevice::create_ren
 
     using ShaderStage = engine::graphics::ShaderStage;
     if(vertex.get_stage() != ShaderStage::Vertex) {
-        engine::utils::throw_error("create_rendering_program vertex shader should be stage Vertex");
+        engine::util::throw_error("create_rendering_program vertex shader should be stage Vertex");
     }
     if(fragment.get_stage() != ShaderStage::Fragment) {
-        engine::utils::throw_error("create_rendering_program fragment shader should be stage Fragment");
+        engine::util::throw_error("create_rendering_program fragment shader should be stage Fragment");
     }
 
     // create a GPU program
@@ -1187,7 +1187,7 @@ std::unique_ptr<engine::graphics::Shader> GLGraphicsDevice::create_shader(
     // create a compiler
     shaderc_compiler_t sc_compiler = shaderc_compiler_initialize();
     if(!sc_compiler) {
-        engine::utils::throw_error("Failed to initialize shaderc");
+        engine::util::throw_error("Failed to initialize shaderc");
     }
 
     // compile into SPIR-V
@@ -1217,7 +1217,7 @@ std::unique_ptr<engine::graphics::Shader> GLGraphicsDevice::create_shader(
         std::string error = shaderc_result_get_error_message(sc_result);
         shaderc_result_release(sc_result);
         shaderc_compiler_release(sc_compiler);
-        engine::utils::throw_error("Shader compilation failed : \n" + error);
+        engine::util::throw_error("Shader compilation failed : \n" + error);
     }
 
     // copy SPIR-V 
@@ -1258,7 +1258,7 @@ std::unique_ptr<engine::graphics::Window> GLGraphicsDevice::create_window(
     );
     if(glfw_window == nullptr) {
         glfwTerminate();
-        engine::utils::throw_error("Failed to create GLFW window");
+        engine::util::throw_error("Failed to create GLFW window");
     }
     glfwShowWindow(glfw_window);
 

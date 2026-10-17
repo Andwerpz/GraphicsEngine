@@ -1,15 +1,29 @@
 #include <engine/ui/node/Label.h>
+#include <engine/ui/UIContext.h>
 #include <iostream>
 
 namespace engine::ui {
 
 Label::Label(
+    UIContext& context,
     std::string text,
-    Font& font,
+    std::string_view font_addr,
+    float font_size,
     UIRect bounds
-) : UINode(bounds),
+) : UINode(context, bounds),
     text(text),
-    font(font)
+    font(context.get_font(font_addr, font_size))
+{
+    text_width = font.measure_text_width(text);
+}
+
+Label::Label(
+    UIContext& context,
+    std::string text,
+    UIRect bounds
+) : UINode(context, bounds),
+    text(text),
+    font(context.get_font("engine://res/fonts/consolas.ttf", 12.0))
 {
     text_width = font.measure_text_width(text);
 }

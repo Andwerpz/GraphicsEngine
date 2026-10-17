@@ -16,6 +16,8 @@ namespace engine::ui {
 
 // some rectangular region 
 
+class UIContext;
+
 class UINode {
     friend class UIContext;
 
@@ -39,7 +41,7 @@ protected:
     using Key = engine::app::Key;
     using KeyAction = engine::app::KeyAction;
 
-    UINode(UIRect bounds);
+    UINode(UIContext& context, UIRect bounds);
  
     void update(float dt);
     void render(UIRenderer& renderer);
@@ -49,13 +51,18 @@ protected:
     bool is_active()    const { return active; }
     bool is_focused()   const { return focused; }
 
+    // returns the owning UIContext
+    UIContext& get_context() {
+        return context;
+    }
+
     // returns the top left bounds position of this node relative to the root origin
     // for now it just walks to the root, TODO figure out how to make this faster
+    // can only be called after init
     glm::vec2 get_absolute_origin();
 
     // returns the absolute position of the mouse
-    // just walks up until it sees a UIRoot node, which should directly query the owning UIContext
-    virtual glm::vec2 get_absolute_mouse_pos();
+    glm::vec2 get_absolute_mouse_pos();
 
     virtual void update_impl(float dt) {}
 
@@ -65,21 +72,10 @@ protected:
     // this gets called after all the children get rendered
     virtual void render_overlay_impl(UIRenderer& renderer) {}
 
-    // adds the child to the node and returns a reference to it
-    // this UINode takes ownership of the child
-    UINode& add_child(std::unique_ptr<UINode> child) {
-        assert(child != nullptr);
-        assert(child->parent == std::nullopt);
-        UINode& ref = *child;
-        children.push_back(std::move(child));
-        ref.parent = this;
-        return ref;
-    }
-
     // constructs the child, adds it to the node, and returns a reference to it
     template<typename T, typename... Args>
     T& emplace_child(Args&&... args) {
-        auto child = std::make_unique<T>(std::forward<Args>(args)...);
+        auto child = std::make_unique<T>(context, std::forward<Args>(args)...);
         T& ref = *child;
         add_child(std::move(child));
         return ref;
@@ -124,6 +120,9 @@ protected:
     virtual void on_focus_gained_impl()     {}
     virtual void on_focus_lost_impl()       {}
 
+    // owning UIContext
+    UIContext& context;
+
     // if this is the root, parent is nullopt
     std::optional<UINode*> parent;
 
@@ -154,6 +153,18 @@ protected:
     bool focused = false;
 
 private:
+    // adds the child to the node and returns a reference to it
+    // this UINode takes ownership of the child
+    UINode& add_child(std::unique_ptr<UINode> child) {
+        assert(child != nullptr);
+        assert(child->parent == std::nullopt);
+        assert(&child->context == &context);
+        UINode& ref = *child;
+        children.push_back(std::move(child));
+        ref.parent = this;
+        return ref;
+    }
+
     // places the given child in front of all other children of this node
     void bring_child_to_front(UINode* child);
 };

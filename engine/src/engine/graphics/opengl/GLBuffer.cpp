@@ -1,6 +1,6 @@
 #include <engine/graphics/opengl/GLBuffer.h>
 #include <engine/graphics/opengl/GLGraphicsDevice.h>
-#include <engine/utils/error.h>
+#include <engine/util/error.h>
 
 #include <iostream>
 
@@ -38,13 +38,13 @@ void GLBuffer::upload_data(
     uint64_t offset
 ) {
     if(get_frequency() != BufferFrequency::Dynamic) {
-        engine::utils::throw_error("can only upload_data to a buffer with dynamic frequency");
+        engine::util::throw_error("can only upload_data to a buffer with dynamic frequency");
     }
     if(data == nullptr) {
-        engine::utils::throw_error("data cannot be nullptr");
+        engine::util::throw_error("data cannot be nullptr");
     }
     if(size + offset > get_size()) {
-        engine::utils::throw_error("upload range out of bounds");
+        engine::util::throw_error("upload range out of bounds");
     }
     glNamedBufferSubData(handle, offset, size, data);
 }
@@ -59,10 +59,10 @@ void GLBuffer::copy_data(
     GLBuffer& other = dynamic_cast<engine::graphics::opengl::GLBuffer&>(_other);
     assert(&other.device == &device);
     if(size + src_offset > get_size()) {
-        engine::utils::throw_error("copy goes out of range of this buffer");
+        engine::util::throw_error("copy goes out of range of this buffer");
     }
     if(size + dst_offset > other.get_size()) {
-        engine::utils::throw_error("copy goes out of range of other buffer");
+        engine::util::throw_error("copy goes out of range of other buffer");
     }
     
     GLuint gl_src_handle = other.handle;

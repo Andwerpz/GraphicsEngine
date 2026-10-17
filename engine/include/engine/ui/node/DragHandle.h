@@ -9,8 +9,9 @@ namespace engine::ui {
 class DragHandle : public UINode {
 public:
     DragHandle(
+        UIContext& context,
         UIRect bounds
-    ) : UINode(bounds) {}
+    ) : UINode(context, bounds) {}
 
     void set_on_drag_begin(std::function<void()> _on_drag_begin) {
         on_drag_begin = _on_drag_begin;

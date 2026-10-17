@@ -1,6 +1,8 @@
 #pragma once
 #include <cstdint>
 #include <atomic>
+#include <vector>
+#include <string_view>
 
 namespace engine::asset {
 
@@ -28,5 +30,10 @@ private:
     // results related to processing an asset
     uint64_t asset_id;
 };
+
+// disambiguates an asset address 
+// if the address starts with "engine://", tries to load from embedded resources
+// otherwise interprets address as filepath and loads from the filesystem
+std::vector<std::byte> load_asset(std::string_view addr);
 
 }

@@ -5,9 +5,10 @@
 namespace engine::ui {
 
 Button::Button(
+    UIContext& context,
     std::function<void()> callback,
     UIRect bounds
-) : UINode(bounds),
+) : UINode(context, bounds),
     callback(callback)
 {
     // do nothing

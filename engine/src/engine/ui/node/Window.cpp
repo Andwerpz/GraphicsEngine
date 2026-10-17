@@ -3,11 +3,18 @@
 namespace engine::ui {
 
 Window::Window(
+    UIContext& context,
+    std::string title_text,
     glm::vec2 pos,
     glm::vec2 content_dim
-) : UINode({pos, {content_dim.x, content_dim.y + HEADER_HEIGHT}}),
-    header(UINode::emplace_child<DragHandle>(UIRect {{0, 0}, {content_dim.x, HEADER_HEIGHT}})),
-    contents(UINode::emplace_child<Container>(UIRect {{0, HEADER_HEIGHT}, content_dim}))
+) : UINode(context, {pos, {content_dim.x, content_dim.y + HEADER_HEIGHT}}),
+    header(UINode::emplace_child<WindowHeader>(
+        title_text,
+        UIRect {{0, 0}, {content_dim.x, HEADER_HEIGHT}}
+    )),
+    contents(UINode::emplace_child<Container>(
+        UIRect {{0, HEADER_HEIGHT}, content_dim}
+    ))
 {
     // register drag callbacks
     header.set_on_drag_begin([&]() -> void {
@@ -23,8 +30,15 @@ void Window::update_impl(float dt) {
 }
 
 void Window::render_impl(UIRenderer& renderer) {
-    // background
-    renderer.draw_rect({{0, 0}, bounds.dim}, BACKGROUND_COLOR);
+    // background blur
+    if(background_blur) {
+        renderer.draw_blur({{0, 0}, bounds.dim}, blur_sigma);
+    }
+
+    // background tint
+    constexpr float ALPHA = 0.7;
+    constexpr float COLOR = 0.1;
+    renderer.draw_rect({{0, 0}, bounds.dim}, {COLOR, COLOR, COLOR, ALPHA});
     
     // header
     renderer.draw_rect({{0, 0}, {bounds.dim.x, HEADER_HEIGHT}}, HEADER_COLOR);

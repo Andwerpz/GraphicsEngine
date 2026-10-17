@@ -137,6 +137,14 @@ void UIContext::on_key(const KeyEvent& ev) {
     }
 }
 
+engine::asset::Font& UIContext::get_font(std::string_view addr, float size) {
+    font_key_t key = {std::string(addr), size};
+    if(!fonts.contains(key)) {
+        fonts.emplace(key, Font::load(addr, size));
+    }
+    return fonts.at(key);
+}
+
 std::vector<UINode*> UIContext::hit_test(glm::vec2 pos) {
     std::vector<UINode*> res;
     UINode* node_ptr = &root;

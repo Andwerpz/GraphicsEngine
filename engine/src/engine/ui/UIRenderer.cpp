@@ -1,11 +1,10 @@
 #include <engine/ui/UIRenderer.h>
-#include <engine/utils/error.h>
+#include <engine/util/error.h>
+#include <engine/asset/EmbeddedResource.h>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
-
-#include <glad/glad.h>
 
 #include <filesystem>
 namespace fs = std::filesystem;
@@ -13,69 +12,6 @@ namespace fs = std::filesystem;
 #include <iostream>
 
 namespace engine::ui {
-
-const char* rect_vert_source = R"(
-#version 460 core
-
-layout (location = 0) in mat4 model;
-layout (location = 4) in vec4 color;
-layout (location = 5) in vec4 uv;   // packed min xy, max xy
-layout (location = 6) in vec4 info; 
-
-layout (location = 0) out vec2 frag_pos;
-layout (location = 1) out vec2 frag_uv;
-layout (location = 2) out vec4 frag_color;
-layout (location = 3) out vec4 frag_info;
-
-layout (binding = 0) uniform Camera {
-    mat4 projection;
-} camera;
-
-vec2 vertices[6] = vec2[](
-    vec2(0, 0),
-    vec2(1, 0),
-    vec2(1, 1),
-    vec2(0, 0),
-    vec2(1, 1),
-    vec2(0, 1)
-);
-
-void main() {
-    vec2 pos = vertices[gl_VertexID];
-    gl_Position = camera.projection * model * vec4(pos, 0.0, 1.0);
-    frag_pos = (model * vec4(pos, 0.0, 1.0)).xy;
-    frag_uv = mix(uv.xy, uv.zw, pos);
-    frag_color = color;
-    frag_info = info;
-}
-)";
-
-const char* rect_frag_source = R"(
-#version 460 core
-
-layout (location = 0) in vec2 frag_pos;
-layout (location = 1) in vec2 frag_uv;
-layout (location = 2) in vec4 frag_color;
-layout (location = 3) in vec4 frag_info;    // {read from texture, unused, unused, unused}
-
-layout (location = 0) out vec4 color;
-
-layout (binding = 1) uniform sampler2D albedo;
-
-void main() {
-    if(frag_info.x != 0.0) {
-        // sample texture
-        vec4 samp = texture(albedo, frag_uv);
-        vec3 base_color = samp.rgb * frag_color.rgb;
-        float alpha = samp.a * frag_color.a;
-        color = vec4(base_color, alpha);
-    }
-    else {
-        // single color
-        color = frag_color;
-    }
-}
-)";
 
 UIRenderer::UIRenderer(
     GraphicsDevice& device,
@@ -85,7 +21,7 @@ UIRenderer::UIRenderer(
 {
     reset();
 
-    // create programs needed to render
+    // create stuff needed to render
     using Program = engine::graphics::Program;
     using ProgramInvocation = engine::graphics::ProgramInvocation;
     using Shader = engine::graphics::Shader;
@@ -95,49 +31,99 @@ UIRenderer::UIRenderer(
     using BufferFrequency = engine::graphics::BufferFrequency;
     using VertexInputRate = engine::graphics::VertexInputRate;
     using VertexFormat = engine::graphics::VertexFormat;
-    instance_buffer = device.create_buffer(INSTANCE_BUFFER_SIZE, BufferUsage::Vertex, BufferFrequency::Dynamic);
+    using TextureDimension = engine::graphics::TextureDimension;
+    using TextureFormat = engine::graphics::TextureFormat;
+    using TextureRenderTarget = engine::graphics::TextureRenderTarget;
+
+    uint32_t width = target.get_width();
+    uint32_t height = target.get_height();
+
+    default_texture = device.create_texture(
+        engine::graphics::TextureDimension::D2,
+        engine::graphics::TextureFormat::RGBA32F,
+        1, 1, 1, 1
+    );
+    default_sampler = device.create_sampler();
+
+    auto create_program = [&](const std::string& name) -> std::unique_ptr<RenderingProgram> {
+        auto vertex_source = asset::EmbeddedResource::load("res/shaders/ui/" + name + ".vert");
+        auto fragment_source = asset::EmbeddedResource::load("res/shaders/ui/" + name + ".frag");
+        auto vertex_shader = device.create_shader(
+            std::string_view((char*) vertex_source.data, vertex_source.size),
+            ShaderStage::Vertex
+        );
+        auto fragment_shader = device.create_shader(
+            std::string_view((char*) fragment_source.data, fragment_source.size),
+            ShaderStage::Fragment
+        );
+        return device.create_rendering_program(
+            *vertex_shader, *fragment_shader,
+            PrimitiveTopology::TriangleList
+        );
+    };
+
+    // compositing
+    {
+        compositing_texture = device.create_texture(
+            TextureDimension::D2,
+            TextureFormat::RGBA32F,
+            width, height, 1, 1
+        );
+        compositing_target = device.create_render_target(width, height);
+        compositing_target->bind_texture(0, *compositing_texture);
+        compositing_target->bind_depth_buffer();
+        compositing_target->validate();
+
+        compositing_program = create_program("compositing");
+        compositing_invocation = compositing_program->create_invocation();
+        compositing_invocation->bind_render_target(target);
+        compositing_invocation->validate();
+
+        compositing_invocation->bind_sampled_texture(
+            {0, 0}, *compositing_texture, *default_sampler
+        );
+    }
 
     // rect
     {
-        auto rect_vertex_shader = device.create_shader(rect_vert_source, ShaderStage::Vertex);
-        auto rect_fragment_shader = device.create_shader(rect_frag_source, ShaderStage::Fragment);
-        rect_program = device.create_rendering_program(
-            *rect_vertex_shader, 
-            *rect_fragment_shader, 
-            PrimitiveTopology::TriangleList
+        rect_instance_buffer = device.create_buffer(
+            RECT_INSTANCE_BUFFER_SIZE, 
+            BufferUsage::Vertex, 
+            BufferFrequency::Dynamic
         );
 
+        rect_program = create_program("rect");
         rect_invocation = rect_program->create_invocation();
-        rect_invocation->bind_render_target(target);
+        rect_invocation->bind_render_target(*compositing_target);
         rect_invocation->bind_vertex_attribute(     // instance transform
             0,
-            *instance_buffer,
+            *rect_instance_buffer,
             0,
-            INSTANCE_SIZE,
+            RECT_INSTANCE_SIZE,
             VertexInputRate::Instance,
             VertexFormat::Float32x4x4
         );
         rect_invocation->bind_vertex_attribute(     // instance color
             4,
-            *instance_buffer,
+            *rect_instance_buffer,
             4 * 16,
-            INSTANCE_SIZE,
+            RECT_INSTANCE_SIZE,
             VertexInputRate::Instance,
             VertexFormat::Float32x4
         );
         rect_invocation->bind_vertex_attribute(     // instance uv
             5,
-            *instance_buffer,
+            *rect_instance_buffer,
             4 * 20,
-            INSTANCE_SIZE,
+            RECT_INSTANCE_SIZE,
             VertexInputRate::Instance,
             VertexFormat::Float32x4
         );
         rect_invocation->bind_vertex_attribute(     // instance info
             6,
-            *instance_buffer,
+            *rect_instance_buffer,
             4 * 24,
-            INSTANCE_SIZE,
+            RECT_INSTANCE_SIZE,
             VertexInputRate::Instance,
             VertexFormat::Float32x4
         );
@@ -148,8 +134,7 @@ UIRenderer::UIRenderer(
             static_cast<float>(target.get_height()), 0.0f,
             -1.0f, 1.0f
         );
-        auto projection_mat4_token = rect_invocation->get_uniform<glm::mat4>("camera.projection");
-        rect_invocation->set_uniform(projection_mat4_token, projection);
+        rect_invocation->set_uniform<glm::mat4>("camera.projection", projection);
 
         // order instances are specified within instance buffer is order they will be rendered
         // TODO set alpha blending mode
@@ -158,12 +143,35 @@ UIRenderer::UIRenderer(
         rect_invocation->do_clear_color(false);
     }
 
-    default_texture = device.create_texture(
-        engine::graphics::TextureDimension::D2,
-        engine::graphics::TextureFormat::RGBA32F,
-        1, 1, 1, 1
-    );
-    default_sampler = device.create_sampler();
+    // blur
+    {
+        blur_texture = device.create_texture(
+            TextureDimension::D2,
+            TextureFormat::RGBA32F,
+            width, height, 1, 1
+        );
+        blur_target = device.create_render_target(width, height);
+        blur_target->bind_texture(0, *blur_texture);
+        blur_target->validate();
+
+        blur_program = create_program("blur");
+        
+        // compositing texture -> blur texture
+        blur_invocation_horizontal = blur_program->create_invocation();
+        blur_invocation_horizontal->bind_render_target(*blur_target);
+        blur_invocation_horizontal->validate();
+        blur_invocation_horizontal->bind_sampled_texture({0, 1}, *compositing_texture, *default_sampler);
+        blur_invocation_horizontal->set_uniform("settings.is_vertical", 0);
+        blur_invocation_horizontal->do_clear_color(true);
+
+        // blur texture -> compositing texture
+        blur_invocation_vertical = blur_program->create_invocation();
+        blur_invocation_vertical->bind_render_target(*compositing_target);
+        blur_invocation_vertical->validate();
+        blur_invocation_vertical->bind_sampled_texture({0, 1}, *blur_texture, *default_sampler);
+        blur_invocation_vertical->set_uniform("settings.is_vertical", 1);
+        blur_invocation_vertical->do_clear_color(false);
+    }
 }
 
 void UIRenderer::draw_rect(UIRect rect, glm::vec4 color) {
@@ -227,6 +235,7 @@ void UIRenderer::draw_text(
 
     // rect commands
     glm::vec2 pen = start + get_origin();
+    glm::vec2 atlas_size = {atlas.get_width(), atlas.get_height()};
     for(int i = 0; i < text.size(); i++) {
         char c = text[i];
         Font::Glyph& glyph = font.get_glyph(c);
@@ -234,7 +243,9 @@ void UIRenderer::draw_text(
         glm::vec2 pos = pen;
         pos.x += glyph.bearing_x;
         pos.y += glyph.bearing_y;
+        pos = glm::round(pos);  // need to round to not let sampling mess with text sharpness
         glm::vec2 dim = {glyph.width, glyph.height};
+        dim += glm::vec2 {0.5, 0.5};
 
         glm::vec2 uv_pos = {glyph.atlas_x, glyph.atlas_y};
         uv_pos.x /= atlas.get_width();
@@ -242,6 +253,14 @@ void UIRenderer::draw_text(
         glm::vec2 uv_dim = dim;
         uv_dim.x /= atlas.get_width();
         uv_dim.y /= atlas.get_height();
+
+        // constexpr float PAD = 1.0f;   // pixels
+        // glm::vec2 pos = glm::round(pen + glm::vec2(glyph.bearing_x, glyph.bearing_y));
+        // glm::vec2 pos = pen + glm::vec2(glyph.bearing_x, glyph.bearing_y) - glm::vec2(PAD);
+        // glm::vec2 dim = glm::vec2(glyph.width, glyph.height) + glm::vec2(2 * PAD);
+
+        // glm::vec2 uv_pos = (glm::vec2(glyph.atlas_x, glyph.atlas_y) - glm::vec2(PAD)) / atlas_size;
+        // glm::vec2 uv_dim = dim / atlas_size;
 
         commands.push_back(DrawTexturedRect {
             {pos, dim}, {uv_pos, uv_dim},
@@ -252,6 +271,11 @@ void UIRenderer::draw_text(
     }
 }
 
+void UIRenderer::draw_blur(UIRect rect, uint32_t sigma) {
+    rect.pos += get_origin();
+    commands.push_back(BlurRect {rect, sigma});
+}
+
 void UIRenderer::push_origin(glm::vec2 origin) {
     origin_stack.push(get_origin() + origin);
 }
@@ -259,7 +283,7 @@ void UIRenderer::push_origin(glm::vec2 origin) {
 void UIRenderer::pop_origin() {
     assert(origin_stack.size() != 0);
     if(origin_stack.size() == 1) {
-        engine::utils::throw_error("cannot pop base origin");
+        engine::util::throw_error("cannot pop base origin");
     }
     origin_stack.pop();
 }
@@ -291,7 +315,7 @@ void UIRenderer::push_clip(UIRect rect) {
 void UIRenderer::pop_clip() {
     assert(clip_stack.size() != 0);
     if(clip_stack.size() == 1) {
-        engine::utils::throw_error("cannot pop base clip rect");
+        engine::util::throw_error("cannot pop base clip rect");
     }
     clip_stack.pop();
     commands.push_back(SetClip {clip_stack.top()});
@@ -303,13 +327,12 @@ UIRect UIRenderer::get_clip() {
 }
 
 void UIRenderer::render() {
-    // buffer for uploading data to the instance buffer
-    assert(INSTANCE_BUFFER_SIZE % sizeof(float) == 0);
-    const uint64_t INSTANCE_AMT = INSTANCE_BUFFER_SIZE / INSTANCE_SIZE;
-    float* cpu_buf = (float*) malloc(INSTANCE_BUFFER_SIZE);
+    compositing_target->clear(engine::graphics::ClearFlags::Color);
+
+    // buffer for uploading data to the rect instance buffer
+    float* cpu_buf = (float*) malloc(RECT_INSTANCE_BUFFER_SIZE);
     uint64_t cpu_buf_ptr = 0;
     uint64_t cpu_instance_cnt = 0;
-
     uint64_t gpu_buf_ptr = 0;
     uint64_t gpu_instance_ptr = 0;
     std::optional<Texture*> bound_texture = std::nullopt;
@@ -319,8 +342,8 @@ void UIRenderer::render() {
 
         // upload rect data to GPU buffer
         uint64_t cpu_buf_upload_sz = sizeof(float) * cpu_buf_ptr;
-        assert(gpu_buf_ptr + cpu_buf_upload_sz <= INSTANCE_BUFFER_SIZE);
-        instance_buffer->upload_data(cpu_buf, cpu_buf_upload_sz, gpu_buf_ptr);
+        assert(gpu_buf_ptr + cpu_buf_upload_sz <= RECT_INSTANCE_BUFFER_SIZE);
+        rect_instance_buffer->upload_data(cpu_buf, cpu_buf_upload_sz, gpu_buf_ptr);
 
         // bind textures
         if(bound_texture.has_value()) {
@@ -349,13 +372,21 @@ void UIRenderer::render() {
         cpu_buf_ptr = 0;
         cpu_instance_cnt = 0;
     };
+    auto bind_texture = [&](uint64_t texture_id) {
+        assert(textures.contains(texture_id));
+        Texture* texture = textures.at(texture_id);
+        if(bound_texture.has_value() && texture->get_texture_id() != bound_texture.value()->get_texture_id()) {
+            flush_instances();
+        }
+        bound_texture = texture;
+    };
     auto write_instance = [&](
         glm::mat4 transform, 
         glm::vec4 color, 
         glm::vec4 uv = {0, 0, 1, 1},
         bool sample_texture = false
     ) {
-        assert(cpu_instance_cnt < INSTANCE_AMT);
+        assert(cpu_instance_cnt < RECT_INSTANCE_AMT);
         cpu_instance_cnt ++;
 
         // transform
@@ -365,9 +396,9 @@ void UIRenderer::render() {
         }
         
         // color
-        cpu_buf[cpu_buf_ptr ++] = color.r;
-        cpu_buf[cpu_buf_ptr ++] = color.g;
-        cpu_buf[cpu_buf_ptr ++] = color.b;
+        cpu_buf[cpu_buf_ptr ++] = color.r * color.a;
+        cpu_buf[cpu_buf_ptr ++] = color.g * color.a;
+        cpu_buf[cpu_buf_ptr ++] = color.b * color.a;
         cpu_buf[cpu_buf_ptr ++] = color.a;
 
         // uv
@@ -383,7 +414,7 @@ void UIRenderer::render() {
         cpu_buf[cpu_buf_ptr ++] = 0;
 
         // flush if buffer is full
-        if(cpu_instance_cnt == INSTANCE_AMT) {
+        if(cpu_instance_cnt == RECT_INSTANCE_AMT) {
             flush_instances();
         }
     };
@@ -463,12 +494,7 @@ void UIRenderer::render() {
             uint64_t texture_id = cmd.texture_id;
 
             // bind texture
-            assert(textures.contains(texture_id));
-            Texture* texture = textures.at(texture_id);
-            if(bound_texture.has_value() && texture->get_texture_id() != bound_texture.value()->get_texture_id()) {
-                flush_instances();
-            }
-            bound_texture = texture;
+            bind_texture(texture_id);
 
             // write instance
             glm::mat4 transform(
@@ -484,11 +510,37 @@ void UIRenderer::render() {
                 true
             );
         }
+        else if(std::holds_alternative<BlurRect>(_cmd)) {
+            BlurRect cmd = std::get<BlurRect>(_cmd);
+            UIRect rect = cmd.rect;
+            uint32_t sigma = cmd.sigma;
+
+            // flush rects
+            flush_instances();
+
+            // do blur
+            // right now, the blur isn't really correct since it gets cut off vertically
+            // in order to fix, probably have to decide on blur kernel size and adjust rect bounds accordingly
+            glm::vec2 target_size = {target.get_width(), target.get_height()};
+            glm::vec2 uv_pos = rect.pos / target_size;
+            glm::vec2 uv_dim = rect.dim / target_size;
+            blur_invocation_horizontal->set_uniform<glm::vec2>("settings.pos", uv_pos);
+            blur_invocation_horizontal->set_uniform<glm::vec2>("settings.dim", uv_dim);
+            blur_invocation_horizontal->set_uniform<int>("settings.sigma", sigma);
+            blur_invocation_vertical->set_uniform<glm::vec2>("settings.pos", uv_pos);
+            blur_invocation_vertical->set_uniform<glm::vec2>("settings.dim", uv_dim);
+            blur_invocation_vertical->set_uniform<int>("settings.sigma", sigma);
+            blur_invocation_horizontal->draw(1);
+            blur_invocation_vertical->draw(1);
+        }
         else assert(false);
     }
     flush_instances();
-
     free(cpu_buf);
+
+    // render compositing texture to target
+    compositing_invocation->draw(1);
+
     reset();
 }
 

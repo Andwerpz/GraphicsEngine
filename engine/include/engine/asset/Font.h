@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <map>
+#include <span>
 #include <filesystem>
 namespace fs = std::filesystem;
 
@@ -32,7 +33,8 @@ public:
     Font(Font&& other);
     ~Font() = default;
 
-    static Font load_font(const fs::path& path, float font_size);
+    static Font load_from_memory(std::span<const std::byte> data, float font_size);
+    static Font load(std::string_view addr, float font_size);
 
     Image& get_atlas() {
         return atlas;

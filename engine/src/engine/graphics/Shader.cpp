@@ -2,7 +2,7 @@
 #include <engine/graphics/ShaderInterface.h>
 #include <engine/graphics/ShaderResource.h>
 #include <engine/graphics/Shader.h>
-#include <engine/utils/error.h>
+#include <engine/util/error.h>
 
 #include <spirv_reflect.h>
 
@@ -99,12 +99,12 @@ std::vector<SpirvInstruction> parse_spirv_instructions(const std::vector<uint32_
     // parse header
     uint32_t id_bound;
     if(spirv_code.size() < 5) {
-        engine::utils::throw_error("Not enough words for header");
+        engine::util::throw_error("Not enough words for header");
     }
     {
         // word 0: Magic number
         if(spirv_code[ptr ++] != 0x07230203) {
-            engine::utils::throw_error("Invalid magic number");
+            engine::util::throw_error("Invalid magic number");
         }
 
         // word 1: Version
@@ -119,7 +119,7 @@ std::vector<SpirvInstruction> parse_spirv_instructions(const std::vector<uint32_
 
         // word 4: Schema, this is currently reserved and must be 0
         if(spirv_code[ptr ++] != 0) {
-            engine::utils::throw_error("Expected schema to be 0");
+            engine::util::throw_error("Expected schema to be 0");
         }
     }
 
@@ -131,10 +131,10 @@ std::vector<SpirvInstruction> parse_spirv_instructions(const std::vector<uint32_
         SpvOp opcode = static_cast<SpvOp>(spirv_code[ptr] & 0xffff);
         uint32_t word_count = spirv_code[ptr] >> 16;
         if(word_count == 0) {
-            engine::utils::throw_error("word_count should be > 0");
+            engine::util::throw_error("word_count should be > 0");
         }
         if(ptr + word_count > spirv_code.size()) {
-            engine::utils::throw_error("invalid word_count");
+            engine::util::throw_error("invalid word_count");
         }
 
         // read in rest of words
@@ -159,7 +159,7 @@ std::string parse_spirv_string(const std::vector<uint32_t>& words, size_t start)
             ret.push_back(c);
         }
     }
-    engine::utils::throw_error("string does not have null terminator");
+    engine::util::throw_error("string does not have null terminator");
 }
 
 // returns a mapping from id -> ShaderType 
@@ -169,7 +169,7 @@ std::map<uint32_t, ShaderType> parse_shader_types(const std::vector<SpirvInstruc
     constexpr bool debug = false;
     auto get_from_id = []<typename T>(uint32_t id, std::map<uint32_t, T>& id_map) -> T& {
         if(!id_map.contains(id)) {
-            engine::utils::throw_error("Tried to get with undeclared id : " + std::to_string(id));
+            engine::util::throw_error("Tried to get with undeclared id : " + std::to_string(id));
         }
         return id_map.at(id);
     };
@@ -188,7 +188,7 @@ std::map<uint32_t, ShaderType> parse_shader_types(const std::vector<SpirvInstruc
     };
     auto get_declared_struct_member_name = [&struct_member_names](uint32_t struct_id, uint32_t member_idx) -> std::string {
         if(!struct_member_names.contains({struct_id, member_idx})) {
-            engine::utils::throw_error("Tried to get undeclared struct member name : " + std::to_string(struct_id) + " " + std::to_string(member_idx));
+            engine::util::throw_error("Tried to get undeclared struct member name : " + std::to_string(struct_id) + " " + std::to_string(member_idx));
         }
         return struct_member_names.at({struct_id, member_idx});
     };
@@ -242,7 +242,7 @@ std::map<uint32_t, ShaderType> parse_shader_types(const std::vector<SpirvInstruc
 
                 ShaderScalarType scalar_type;
                 if(width != 32) {
-                    engine::utils::throw_error("Unsupported int bit width : " + std::to_string(width));
+                    engine::util::throw_error("Unsupported int bit width : " + std::to_string(width));
                 }
                 if(signedness) {
                     scalar_type = ShaderScalarType::Int;
@@ -269,7 +269,7 @@ std::map<uint32_t, ShaderType> parse_shader_types(const std::vector<SpirvInstruc
                 else if(width == 64) {
                     scalar_type = ShaderScalarType::Double;
                 }
-                else engine::utils::throw_error("Unsupported float bit width : " + std::to_string(width));
+                else engine::util::throw_error("Unsupported float bit width : " + std::to_string(width));
                 ShaderType type(scalar_type);
                 types.emplace(id, type);
 
@@ -354,7 +354,7 @@ std::map<uint32_t, ShaderType> parse_shader_types(const std::vector<SpirvInstruc
                         dimension = TextureDimension::Cube;
                         break;
                     default:
-                        engine::utils::throw_error("Unsupported SPIR-V texture dimension : " + std::string(get_image_dimension_string(dim)));
+                        engine::util::throw_error("Unsupported SPIR-V texture dimension : " + std::string(get_image_dimension_string(dim)));
                 }
 
                 ShaderType& base_type = get_declared_type(sampled_type_id);
@@ -621,7 +621,7 @@ void print_block_variable(const ShaderBlockVariable& block, uint32_t indent = 0)
 
 void try_with_error(SpvReflectResult spv_result, const char* err_msg) {
     if(spv_result != SPV_REFLECT_RESULT_SUCCESS) {
-        engine::utils::throw_error(std::string(err_msg) + " : " + get_result_string(spv_result));
+        engine::util::throw_error(std::string(err_msg) + " : " + get_result_string(spv_result));
     }
 }
 

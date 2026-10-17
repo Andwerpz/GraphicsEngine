@@ -13,8 +13,16 @@ class Label : public UINode {
 
 public:
     Label(
+        UIContext& context,
         std::string text,
-        Font& font,
+        std::string_view font_addr,
+        float font_size,
+        UIRect bounds
+    );
+
+    Label(
+        UIContext& context,
+        std::string text,
         UIRect bounds
     );
 
@@ -43,6 +51,7 @@ private:
     std::string text;
 
     // font to render the text with
+    // should be gotten from the owning UIContext
     Font& font;
 
     // precomputed text width in pixels

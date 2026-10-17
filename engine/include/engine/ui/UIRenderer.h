@@ -21,6 +21,10 @@
 
 namespace engine::ui {
 
+// TODO implement a better gaussian blurring algorithm
+//   maybe something like a dual kawase / downsampling upsampling
+//   need to decide on the blur sigma first though 
+
 // responsible for efficiently rendering UI primitives to some rendering target
 
 // UI renderer should accept draw commands like
@@ -32,23 +36,10 @@ namespace engine::ui {
 // - render()
 // this should render to the underlying render target and consume all the draw commands
 
-// what primitives should the UI renderer be able to render?
-// - rectangle
-// - line
-// - text
-// - textured rectangle
-
-// shader effects?
-// - blur a rectangle
-// - rectangular drop shadow
-
-// it should also have a clip rectangle stack
-// - push_clip(top_left, dim)
-// - pop_clip()
-
 class UIRenderer {
     using GraphicsDevice = engine::graphics::GraphicsDevice;
     using RenderTarget = engine::graphics::RenderTarget;
+    using TextureRenderTarget = engine::graphics::TextureRenderTarget;
     using RenderingProgram = engine::graphics::RenderingProgram;
     using RenderingProgramInvocation = engine::graphics::RenderingProgramInvocation;
     using Buffer = engine::graphics::Buffer;
@@ -89,7 +80,9 @@ public:
         Font& font
     );
 
-    // void draw_blur();
+    // blurs the given rect with a fixed kernel size gaussian blur
+    void draw_blur(UIRect rect, uint32_t sigma);
+
     // void draw_drop_shadow();
 
     // push/pop origin from the origin stack
@@ -147,11 +140,16 @@ private:
         UIRect uv_rect;
         uint64_t texture_id;
     };
+    struct BlurRect {
+        UIRect rect;
+        uint32_t sigma;
+    };
     using Command = std::variant<
         SetClip,
         DrawRect,
         DrawLine,
-        DrawTexturedRect
+        DrawTexturedRect,
+        BlurRect
     >;
     std::vector<Command> commands;
 
@@ -159,22 +157,38 @@ private:
     // these textures are the ones used in the current render
     std::map<uint64_t, Texture*> textures;
 
-    // rectangle rendering pipeline
-    const uint64_t INSTANCE_BUFFER_SIZE = (1 << 16);
-    const uint64_t INSTANCE_SIZE = sizeof(float) * 28;
-    std::unique_ptr<Buffer> instance_buffer;
-    std::unique_ptr<RenderingProgram> rect_program;
-    std::unique_ptr<RenderingProgramInvocation> rect_invocation;
-
-    // default texture stuff to bind when nothing else is specified
+    // default texture/sampler to bind when nothing else is specified
     std::unique_ptr<Texture> default_texture;
     std::unique_ptr<Sampler> default_sampler;
+
+    // render target that is used for compositing
+    std::unique_ptr<Texture> compositing_texture;
+    std::unique_ptr<TextureRenderTarget> compositing_target;
+
+    // program that just renders compositing texture to the target
+    std::unique_ptr<RenderingProgram> compositing_program;
+    std::unique_ptr<RenderingProgramInvocation> compositing_invocation;
+
+    // rectangle rendering pipeline
+    static constexpr uint64_t RECT_INSTANCE_BUFFER_SIZE = (1 << 16);
+    static constexpr uint64_t RECT_INSTANCE_SIZE = sizeof(float) * 28;
+    static constexpr uint64_t RECT_INSTANCE_AMT = RECT_INSTANCE_BUFFER_SIZE / RECT_INSTANCE_SIZE;
+    static_assert(RECT_INSTANCE_BUFFER_SIZE % sizeof(float) == 0);
+    std::unique_ptr<Buffer> rect_instance_buffer;
+    std::unique_ptr<RenderingProgram> rect_program;
+    std::unique_ptr<RenderingProgramInvocation> rect_invocation;
 
     // mapping asset_id -> cached texture
     // these cached textures are managed by UIRenderer and are persistent across renders
     std::map<uint64_t, std::unique_ptr<Texture>> asset_textures;
 
-
+    // blur pipeline
+    static constexpr uint64_t BLUR_KERNEL_SIZE = 32;
+    std::unique_ptr<RenderingProgram> blur_program;
+    std::unique_ptr<RenderingProgramInvocation> blur_invocation_horizontal;
+    std::unique_ptr<RenderingProgramInvocation> blur_invocation_vertical;
+    std::unique_ptr<Texture> blur_texture;
+    std::unique_ptr<TextureRenderTarget> blur_target;
 };
 
 }

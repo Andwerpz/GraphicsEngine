@@ -1,15 +1,24 @@
 #include <engine/asset/Font.h>
-#include <engine/utils/error.h>
+#include <engine/util/error.h>
+#include <engine/util/file.h>
+#include <engine/asset/EmbeddedResource.h>
 #include <cassert>
 #include <optional>
 
 #include <freetype/freetype.h>
+#include <freetype/fterrors.h>
 #include <ft2build.h>
 #include FT_FREETYPE_H
 
 #include <iostream>
 
 namespace engine::asset {
+
+std::string get_ft_error(FT_Error err) {
+    const char* msg = FT_Error_String(err);
+    std::string text = msg ? msg : "unknown FreeType error";
+    return text;
+}
 
 void print_bitmap(const FT_Bitmap& bitmap) {
     constexpr char ramp[] = " .:-=+*#%@";
@@ -35,11 +44,13 @@ struct Pixel {
     float r, g, b, a;
 };
 
-// returns array : pixels[x][y]
+// returns array : pixels[x][y], pixels are premultiplied alpha
 std::vector<std::vector<Pixel>> decode_bitmap(const FT_Bitmap& bitmap) {
     std::vector<std::vector<Pixel>> pixels(bitmap.width, std::vector<Pixel>(bitmap.rows));
+
+    // returns premultiplied grayscale pixel
     auto grayscale_pixel = [](float coverage) -> Pixel {
-        return {1.0f, 1.0f, 1.0f, coverage};
+        return {coverage, coverage, coverage, coverage};
     };
 
     for(uint32_t y = 0; y < bitmap.rows; y++) {
@@ -84,7 +95,7 @@ std::vector<std::vector<Pixel>> decode_bitmap(const FT_Bitmap& bitmap) {
                 case FT_PIXEL_MODE_LCD:
                 case FT_PIXEL_MODE_LCD_V:
                     // subpixel rendering for LCD screens
-                    engine::utils::throw_error("FT_PIXEL_MODE_LCD/LCD_V is not supported");
+                    engine::util::throw_error("FT_PIXEL_MODE_LCD/LCD_V is not supported");
                 case FT_PIXEL_MODE_BGRA: {
                     // 32-bit premultiplied BGRA
                     const uint8_t* p = row + x * 4;
@@ -97,7 +108,7 @@ std::vector<std::vector<Pixel>> decode_bitmap(const FT_Bitmap& bitmap) {
                     break;
                 }
                 default:
-                    engine::utils::throw_error("Unknown FreeType pixel mode");
+                    engine::util::throw_error("Unknown FreeType pixel mode");
             }
             pixels[x][y] = px;
         }
@@ -105,30 +116,33 @@ std::vector<std::vector<Pixel>> decode_bitmap(const FT_Bitmap& bitmap) {
     return pixels;
 }
 
-Font Font::load_font(const fs::path& path, float font_size) {
+Font Font::load_from_memory(std::span<const std::byte> data, float font_size) {
     // initialize FreeType
     FT_Library library;
     if(FT_Init_FreeType(&library)) {
-        engine::utils::throw_error("Failed to initialize FreeType");
+        engine::util::throw_error("Failed to initialize FreeType");
     }
+    FT_Error err;
 
     // load font
     FT_Face face;
-    if(FT_New_Face(
+    err = FT_New_Memory_Face(
         library,
-        path.string().c_str(),
-        0,
+        reinterpret_cast<const FT_Byte*>(data.data()),
+        static_cast<FT_Long>(data.size_bytes()),
+        0,          // face index (non-zero only for collections like .ttc)
         &face
-    )) {
-        FT_Done_FreeType(library);
-        engine::utils::throw_error("Failed to load font : " + path.string());
+    );
+    if(err) {
+        engine::util::throw_error("Failed to load font : " + get_ft_error(err));
     }
 
-    // request font size
-    if (FT_Set_Pixel_Sizes(face, 0, font_size)) {
+    // set font size
+    err = FT_Set_Pixel_Sizes(face, 0, font_size);
+    if(err) {
         FT_Done_Face(face);
         FT_Done_FreeType(library);
-        engine::utils::throw_error("Failed to set font size : " + path.string());
+        engine::util::throw_error("Failed to set font size : " + get_ft_error(err));
     }
 
     // load font info
@@ -143,27 +157,27 @@ Font Font::load_font(const fs::path& path, float font_size) {
         FT_UInt glyph_index;
         FT_ULong char_code = FT_Get_First_Char(face, &glyph_index);
         while(glyph_index != 0) {
-            if(FT_Load_Glyph(face, glyph_index, FT_LOAD_RENDER) == 0) {
-                FT_GlyphSlot ft_glyph = face->glyph;
-                if(char_code >= 128) {
-                    // non ascii char, skip for now
-                }
-                else {
-                    assert(!glyphs.contains(char_code));
+            err = FT_Load_Glyph(face, glyph_index, FT_LOAD_RENDER);
+            if(err) {
+                engine::util::throw_error("Failed to load glyph : \'" + std::to_string(char_code) + "\' : " + get_ft_error(err));
+            }
 
-                    Font::Glyph glyph;
-                    glyph.char_code = char_code;
-                    glyph.width = ft_glyph->bitmap.width;
-                    glyph.height = ft_glyph->bitmap.rows;
-                    glyph.advance_x = ft_glyph->advance.x / 64.0f;
-                    glyph.bearing_x = ft_glyph->bitmap_left;
-                    glyph.bearing_y = -ft_glyph->bitmap_top;
-                    glyphs.insert({char_code, glyph});
-                    bitmaps.insert({char_code, decode_bitmap(ft_glyph->bitmap)});
-                }
+            FT_GlyphSlot ft_glyph = face->glyph;
+            if(char_code >= 128) {
+                // non ascii char, skip for now
             }
             else {
-                engine::utils::throw_error("Failed to load glyph : \'" + std::to_string(char_code) + "\' : " + path.string());
+                assert(!glyphs.contains(char_code));
+
+                Font::Glyph glyph;
+                glyph.char_code = char_code;
+                glyph.width = ft_glyph->bitmap.width;
+                glyph.height = ft_glyph->bitmap.rows;
+                glyph.advance_x = ft_glyph->advance.x / 64.0f;
+                glyph.bearing_x = ft_glyph->bitmap_left;
+                glyph.bearing_y = -ft_glyph->bitmap_top;
+                glyphs.insert({char_code, glyph});
+                bitmaps.insert({char_code, decode_bitmap(ft_glyph->bitmap)});
             }
             char_code = FT_Get_Next_Char(face, char_code, &glyph_index);
         }
@@ -251,7 +265,8 @@ Font Font::load_font(const fs::path& path, float font_size) {
     Image atlas(
         atlas_width,
         atlas_height,
-        ImageFormat::RGBA8
+        ImageFormat::RGBA8,
+        ImageAlphaMode::Premultiplied
     );
     build_atlas(atlas_width, atlas_height, &atlas);
 
@@ -261,6 +276,17 @@ Font Font::load_font(const fs::path& path, float font_size) {
         ascent,
         descent,
         line_height
+    );
+}
+
+Font Font::load(std::string_view addr, float font_size) {
+    // load bytes
+    std::vector<std::byte> data = load_asset(addr);
+
+    // load font
+    return load_from_memory(
+        std::span<const std::byte>(data.data(), data.size()),
+        font_size
     );
 }
 
@@ -291,7 +317,7 @@ Font::Font(
 
 Font::Glyph& Font::get_glyph(uint64_t char_code) {
     if(!glyphs.contains(char_code)) {
-        engine::utils::throw_error("no glyph with char code : " + std::to_string(char_code));
+        engine::util::throw_error("no glyph with char code : " + std::to_string(char_code));
     }
     return glyphs.at(char_code);
 }

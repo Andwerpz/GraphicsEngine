@@ -182,8 +182,7 @@ inline void test_texture() {
 
     auto sampler = device.create_sampler();
 
-    fs::path image_path = fs::current_path() / "res/textures/astolfo.png";
-    auto image = engine::asset::Image::load_image(image_path);
+    auto image = engine::asset::Image::load("res/textures/astolfo.png");
     auto texture = device.create_texture(
         engine::graphics::TextureDimension::D2,
         engine::graphics::TextureFormat::RGBA32F,
@@ -310,7 +309,7 @@ inline void test_skybox() {
 
     auto sampler = device.create_sampler();
 
-    auto texture_image = engine::asset::Image::load_image(fs::current_path() / "res/textures/astolfo.png");
+    auto texture_image = engine::asset::Image::load("res/textures/astolfo.png");
     auto texture = device.create_texture(
         engine::graphics::TextureDimension::D2,
         engine::graphics::TextureFormat::RGBA32F,
@@ -331,7 +330,7 @@ inline void test_skybox() {
         "back.jpg",    // -Z
     };
     for(int i = 0; i < 6; i++) {
-        auto image = engine::asset::Image::load_image(fs::current_path() / "res/textures/lake" / skybox_strs[i]);
+        auto image = engine::asset::Image::load("res/textures/lake/" + std::string(skybox_strs[i]));
         skybox_image[i] = new engine::asset::Image(std::move(image));
     }
     auto skybox = device.create_texture(
@@ -886,7 +885,7 @@ inline void test_sampler_array() {
         engine::graphics::PrimitiveTopology::TriangleList
     );
 
-    auto texture_image = engine::asset::Image::load_image(fs::current_path() / "res/textures/astolfo.png");
+    auto texture_image = engine::asset::Image::load("res/textures/astolfo.png");
     auto texture = device.create_texture(
         engine::graphics::TextureDimension::D2,
         engine::graphics::TextureFormat::RGBA32F,

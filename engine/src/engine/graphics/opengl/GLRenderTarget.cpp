@@ -2,7 +2,7 @@
 #include <engine/graphics/opengl/GLTexture.h>
 #include <engine/graphics/opengl/GLWindow.h>
 #include <engine/graphics/opengl/GLGraphicsDevice.h>
-#include <engine/utils/error.h>
+#include <engine/util/error.h>
 
 namespace engine::graphics::opengl {
 
@@ -23,7 +23,7 @@ void GLTextureRenderTarget::bind_texture_impl(
     Texture& tex
 ) {
     if(dynamic_cast<GLTexture*>(&tex) == nullptr) {
-        engine::utils::throw_error("trying to bind non-opengl texture to opengl render target");
+        engine::util::throw_error("trying to bind non-opengl texture to opengl render target");
     }
     GLTexture& gl_tex = dynamic_cast<GLTexture&>(tex);
     gl_framebuffer.gl_bind_color_attachment(location, gl_tex);
@@ -41,7 +41,7 @@ void GLTextureRenderTarget::bind_depth_buffer_impl() {
 void GLTextureRenderTarget::validate_impl() {
     // validate framebuffer
     if(!gl_framebuffer.gl_is_complete()) {
-        engine::utils::throw_error("failed to validate framebuffer");
+        engine::util::throw_error("failed to validate framebuffer");
     }
 }
 

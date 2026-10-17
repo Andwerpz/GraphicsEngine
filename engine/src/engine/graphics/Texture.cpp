@@ -1,5 +1,5 @@
 #include <engine/graphics/Texture.h>
-#include <engine/utils/error.h>
+#include <engine/util/error.h>
 #include <engine/asset/Image.h>
 #include <cassert>
 
@@ -72,12 +72,12 @@ void Texture::upload_image(
 ) {
     // texture must be 2D or cubemap to accept image upload
     if(get_dimension() != TextureDimension::D2 && get_dimension() != TextureDimension::Cube) {
-        engine::utils::throw_error("texture must be 2D or cubemap to upload data from an image");
+        engine::util::throw_error("texture must be 2D or cubemap to upload data from an image");
     }
 
     // texture dimensions must match image dimensions
     if(get_width(mip_level) != image.get_width() || get_height(mip_level) != image.get_height()) {
-        engine::utils::throw_error("image and texture dimensions mismatch");
+        engine::util::throw_error("image and texture dimensions mismatch");
     }
 
     // convert image data into proper format
@@ -85,17 +85,26 @@ void Texture::upload_image(
     void* buf;
     switch(get_format()) {
         case TextureFormat::RGBA32F: {
-            uint64_t buf_size = sizeof(float) * 4 * image.get_width() * image.get_height();
+            uint64_t pixel_count = (uint64_t) image.get_width() * (uint64_t) image.get_height();
+            uint64_t buf_size = sizeof(float) * 4 * pixel_count;
             assert(buf_size == get_size(mip_level));
             buf = malloc(buf_size);
-            for(int i = 0; i < image.get_width() * image.get_height() * 4; i++) {
-                uint8_t val = ((uint8_t*) image.get_data())[i];
-                ((float*) buf) [i] = (float) val / 255.0;
+
+            const uint8_t* src = (const uint8_t*) image.get_data();
+            float* dst = (float*) buf;
+            bool premultiply = image.get_alpha_mode() != engine::asset::ImageAlphaMode::Premultiplied;
+            for(uint64_t i = 0; i < pixel_count; i++) {
+                float a = src[i * 4 + 3] / 255.0f;
+                for(int c = 0; c < 3; c++) {
+                    float v = src[i * 4 + c] / 255.0f;
+                    dst[i * 4 + c] = premultiply ? v * a : v;
+                }
+                dst[i * 4 + 3] = a;
             }
             break;
         }
         default:
-            engine::utils::throw_error("texture has format incompatible with image upload");
+            engine::util::throw_error("texture has format incompatible with image upload");
     }
 
     // upload data

@@ -1,8 +1,7 @@
 #pragma once
 #include <engine/ui/UINode.h>
-#include <engine/ui/node/Label.h>
 #include <engine/ui/node/Container.h>
-#include <engine/ui/node/DragHandle.h>
+#include <engine/ui/node/WindowHeader.h>
 
 namespace engine::ui {
 
@@ -19,6 +18,8 @@ public:
     // pos gives the top left position of the window
     // content_dim gives dimensions of the content inside the window
     Window(
+        UIContext& context,
+        std::string title_text,
         glm::vec2 pos,
         glm::vec2 content_dim
     );
@@ -26,6 +27,14 @@ public:
     template<typename T, typename... Args>
     T& emplace_child(Args&&... args) {
         return contents.emplace_child<T>(std::forward<Args>(args)...);
+    }
+
+    void do_background_blur(bool val) {
+        background_blur = val;
+    }
+
+    void set_blur_sigma(uint32_t sigma) {
+        blur_sigma = sigma;
     }
 
 private:
@@ -44,17 +53,19 @@ private:
     void on_focus_enter_impl() override;
 
     // draggable window header
-    DragHandle& header;
+    WindowHeader& header;
 
     // the contents of the window
     Container& contents;
 
+    // whether or not to do the background blur
+    // by default is off, should enable this if background can be visible. 
+    bool background_blur = false;
+
     // recorded when we start a drag
     glm::vec2 drag_start_bounds_pos;
 
-    // TODO figure out how to set a default font
-    // // title rendered in the header
-    // Label title;
+    uint32_t blur_sigma = 16;
 };
 
 }

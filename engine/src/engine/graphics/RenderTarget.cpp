@@ -1,5 +1,5 @@
 #include <engine/graphics/RenderTarget.h>
-#include <engine/utils/error.h>
+#include <engine/util/error.h>
 #include <cassert>
 
 namespace engine::graphics {
@@ -22,17 +22,17 @@ TextureRenderTarget::TextureRenderTarget(
 
 void TextureRenderTarget::bind_texture(uint32_t location, Texture& tex) {
     if(validated) {
-        engine::utils::throw_error("cannot bind texture to render target after validating");
+        engine::util::throw_error("cannot bind texture to render target after validating");
     }
 
     // see if there already is a texture bound at this location
     if(bound_textures.contains(location)) {
-        engine::utils::throw_error("texture already bound at location : " + std::to_string(location));
+        engine::util::throw_error("texture already bound at location : " + std::to_string(location));
     }
 
     // make sure dimensions match
     if(tex.get_width() != width || tex.get_height() != height) {
-        engine::utils::throw_error("texture dimensions do not match render target dimensions");
+        engine::util::throw_error("texture dimensions do not match render target dimensions");
     }
 
     // bind texture
@@ -42,12 +42,12 @@ void TextureRenderTarget::bind_texture(uint32_t location, Texture& tex) {
 
 void TextureRenderTarget::bind_depth_buffer() {
     if(validated) {
-        engine::utils::throw_error("cannot bind depth buffer to render target after validating");
+        engine::util::throw_error("cannot bind depth buffer to render target after validating");
     }
 
     // see if there already is a depth buffer
     if(depth_buffer_bound) {
-        engine::utils::throw_error("depth buffer already bound");
+        engine::util::throw_error("depth buffer already bound");
     }
 
     // bind depth buffer

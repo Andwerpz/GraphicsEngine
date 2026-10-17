@@ -1,6 +1,6 @@
 #include <engine/graphics/opengl/GLProgramInvocation.h>
 #include <engine/graphics/opengl/GLGraphicsDevice.h>
-#include <engine/utils/error.h>
+#include <engine/util/error.h>
 
 #include <iostream>
 
@@ -19,14 +19,14 @@ void GLRenderingProgramInvocation::validate_impl() {
     // TODO maybe move these checks into RenderingProgramInvocation
     // make sure render target has been bound
     if(!render_target.has_value()) {
-        engine::utils::throw_error("no render target has been bound");
+        engine::util::throw_error("no render target has been bound");
     }
 
     // check shader interface inputs
     for(const auto& [location, input_var] : program.get_interface().inputs) {
         // make sure there is a corresponding vertex attribute bound
         if(!attribute_bindings.contains(location)) {
-            engine::utils::throw_error("no vertex attribute bound for input variable : " + input_var.name);
+            engine::util::throw_error("no vertex attribute bound for input variable : " + input_var.name);
         }
 
         // make sure vertex attribute format matches type of input variable
@@ -52,7 +52,7 @@ void GLRenderingProgramInvocation::validate_impl() {
         //         assert(false);
         // }
         // if(!(input_var.type == expected_type)) {
-        //     engine::utils::throw_error("input variable \"" + input_var.name + "\" has format " + to_string(input_var.type) + " while vertex attribute has format : " + to_string(expected_type));
+        //     engine::util::throw_error("input variable \"" + input_var.name + "\" has format " + to_string(input_var.type) + " while vertex attribute has format : " + to_string(expected_type));
         // }
     }
 
@@ -159,7 +159,7 @@ void GLRenderingProgramInvocation::draw_impl(
 
         // opengl doesn't have the notion of descriptor sets 
         if(set != 0) {
-            engine::utils::throw_error("set must be 0");
+            engine::util::throw_error("set must be 0");
         }
 
         switch(resource.type) {
@@ -205,10 +205,7 @@ void GLRenderingProgramInvocation::draw_impl(
     // misc settings 
     // TODO move these raw OpenGL calls into GLGraphicsDevice where the context is managed
     glEnable(GL_BLEND);
-    glBlendFuncSeparate(
-        GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA,
-        GL_ONE, GL_ONE_MINUS_SRC_ALPHA
-    );
+    glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
     gl_device.gl_set_viewport(
         *context, 
         0, 0, 
@@ -219,6 +216,8 @@ void GLRenderingProgramInvocation::draw_impl(
         glEnable(GL_DEPTH_TEST);
     else 
         glDisable(GL_DEPTH_TEST);
+
+    glClearColor(0.0, 0.0, 0.0, 0.0);
     render_target.value().get().clear(clear_flags);
 
     // execute program

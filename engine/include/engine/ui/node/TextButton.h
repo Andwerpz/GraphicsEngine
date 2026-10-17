@@ -11,8 +11,10 @@ class TextButton : public Button {
 
 public:
     TextButton(
+        UIContext& context,
         std::string text,
-        Font& font,
+        std::string_view font_addr,
+        float font_size,
         std::function<void()> function,
         UIRect bounds
     );

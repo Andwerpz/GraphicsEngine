@@ -1,6 +1,7 @@
 #pragma once
 #include <chrono>
 
+#include <engine/asset/Font.h>
 #include <engine/app/input/InputHandler.h>
 #include <engine/app/input/KeyEvent.h>
 #include <engine/app/input/MouseButtonEvent.h>
@@ -10,13 +11,16 @@
 
 namespace engine::ui {
 
-// does input handling for a UI node graph
+// handles a UINode graph
+// directs mouse/keyboard/scroll inputs to relevant nodes in the graph
+// manages asset loading and reuse
 
 class UIContext {
     using CursorPositionEvent = engine::app::CursorPositionEvent;
     using MouseButtonEvent = engine::app::MouseButtonEvent;
     using ScrollEvent = engine::app::ScrollEvent;
     using KeyEvent = engine::app::KeyEvent;
+    using Font = engine::asset::Font;
 
 public:
     UIContext(
@@ -42,7 +46,11 @@ public:
     void on_scroll(const ScrollEvent&);
     void on_key(const KeyEvent&);
 
+    // get references to resources managed by the context
+    Font& get_font(std::string_view addr, float size);
+
 private:
+    // -- INPUT HANDLING --
     // returns the chain of UINodes containing this position, excluding the root
     // pos is relative to the root element
     // parent node will always precede a child node
@@ -92,6 +100,10 @@ private:
     // a node is unfocused when the mouse next gets pressed
     // while set, keyboard input goes to this node only
     std::optional<UINode*> focused_node;
+
+    // -- ASSETS --
+    typedef std::pair<std::string, float> font_key_t;
+    std::map<font_key_t, Font> fonts;
 };
 
 }
