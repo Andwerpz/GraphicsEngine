@@ -5,15 +5,17 @@ namespace engine::ui {
 Viewport::Viewport(
     UIContext& context,
     GraphicsDevice& device,
-    UIRect bounds
-) : UINode(context, bounds),
+    glm::vec2 dim
+) : UINode(context),
     device(device)
 {
+    set_fixed_dim(dim);
+
     // initialize render target
     using TextureDimension = engine::graphics::TextureDimension;
     using TextureFormat = engine::graphics::TextureFormat;
-    uint32_t width = std::max((uint32_t) 1, (uint32_t) bounds.dim.x);
-    uint32_t height = std::max((uint32_t) 1, (uint32_t) bounds.dim.y);
+    uint32_t width = std::max((uint32_t) 1, (uint32_t) dim.x);
+    uint32_t height = std::max((uint32_t) 1, (uint32_t) dim.y);
     render_texture = device.create_texture(
         TextureDimension::D2,
         TextureFormat::RGBA32F,
@@ -31,7 +33,7 @@ void Viewport::update_impl(float dt) {
 }
 
 void Viewport::render_impl(UIRenderer& renderer) {
-    renderer.draw_textured_rect({{0, 0}, bounds.dim}, *render_texture);
+    renderer.draw_textured_rect({{0, 0}, get_dim()}, *render_texture);
 }
 
 }

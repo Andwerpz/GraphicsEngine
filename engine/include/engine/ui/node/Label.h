@@ -16,14 +16,12 @@ public:
         UIContext& context,
         std::string text,
         std::string_view font_addr,
-        float font_size,
-        UIRect bounds
+        float font_size
     );
 
     Label(
         UIContext& context,
-        std::string text,
-        UIRect bounds
+        std::string text
     );
 
     std::string& get_text() {
@@ -46,6 +44,9 @@ public:
 private:
     void update_impl(float dt) override;
     void render_impl(UIRenderer& renderer) override;
+
+    // labels are supposed to be decorative
+    virtual bool hit_testable() const   { return false; }
 
     // text to be rendered
     std::string text;

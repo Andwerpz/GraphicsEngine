@@ -126,25 +126,28 @@ inline void test_ui_context() {
 
     engine::ui::UIContext ui_context(device, *window_render_target);
     engine::ui::Container& root_node = ui_context.get_root();
-    root_node.emplace_child<engine::ui::Label>(
+    auto& label = root_node.emplace_child<engine::ui::Label>(
         "abcdefgh",
-        "res/fonts/Consolas-Regular.ttf", 32.0,
-        engine::ui::UIRect {{5, 5}, {200, 50}}
+        "res/fonts/Consolas-Regular.ttf", 32.0
     );
-    root_node.emplace_child<engine::ui::Button>(
+    label.set_offset({5, 5});
+    label.set_fixed_dim({200, 50});
+    auto& button = root_node.emplace_child<engine::ui::Button>(
         [&]() -> void {
             std::cout << "button clicked" << std::endl;
-        },
-        engine::ui::UIRect {{5, 60}, {200, 50}}
+        }
     );
-    root_node.emplace_child<engine::ui::TextButton>(
+    button.set_offset({5, 60});
+    button.set_fixed_dim({200, 50});
+    auto& text_button = root_node.emplace_child<engine::ui::TextButton>(
         "text button",
         "res/fonts/Consolas-Regular.ttf", 24.0,
         [&]() -> void {
             std::cout << "text button clicked" << std::endl;
-        },
-        engine::ui::UIRect {{5, 115}, {200, 50}}
+        }
     );
+    text_button.set_offset({5, 115});
+    text_button.set_fixed_dim({200, 50});
     auto& ui_window2 = root_node.emplace_child<engine::ui::Window>(
         "sigma 16",
         glm::vec2 {55, 220}, glm::vec2 {300, 300}
@@ -247,9 +250,9 @@ inline void test_ui_context() {
         glm::vec2 {5, 170}, texture_dim
     );
     auto& viewport = ui_window.emplace_child<engine::ui::Viewport>(
-        device,
-        engine::ui::UIRect {{0, 0}, texture_dim}
+        device, texture_dim
     );
+    viewport.set_anchor(glm::vec2(0, 0), glm::vec2(1, 1));
 
     auto invocation = program->create_invocation(); 
     invocation->bind_render_target(viewport.get_render_target());

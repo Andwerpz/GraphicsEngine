@@ -22,11 +22,32 @@ class UINode {
     friend class UIContext;
 
 public:
-    UINode(UINode&&) = delete;
-    ~UINode();
+    ~UINode() = default;
 
+    // non-copyable, non-moveable so that addresses of nodes stay constant
     UINode(const UINode&) = delete;
     UINode& operator=(const UINode&) = delete;
+    UINode(UINode&&) = delete;
+    UINode& operator=(UINode&&) = delete;
+
+    // returns the owning UIContext
+    UIContext& get_context() { return context; }
+
+    glm::vec2 get_pos() { return bounds.pos; }
+    glm::vec2 get_dim() { return bounds.dim; }
+
+    bool is_hovered()   const { return hovered; }
+    bool is_captured()  const { return captured; }
+    bool is_active()    const { return active; }
+    bool is_focused()   const { return focused; }
+
+    // alignment setters
+    void set_anchor(glm::vec2 anchor_min, std::optional<glm::vec2> anchor_max = std::nullopt);
+    void set_pivot(glm::vec2 pivot);
+    void set_offset(glm::vec2 _offset);
+    void set_fixed_dim(glm::vec2 dim);
+    void set_margin_min(glm::vec2 margin_min);
+    void set_margin_max(glm::vec2 margin_max);
 
 protected:
     using CursorPositionEvent = engine::app::CursorPositionEvent;
@@ -41,27 +62,17 @@ protected:
     using Key = engine::app::Key;
     using KeyAction = engine::app::KeyAction;
 
-    UINode(UIContext& context, UIRect bounds);
+    UINode(UIContext& context);
  
     void update(float dt);
     void render(UIRenderer& renderer);
 
-    bool is_hovered()   const { return hovered; }
-    bool is_captured()  const { return captured; }
-    bool is_active()    const { return active; }
-    bool is_focused()   const { return focused; }
-
-    // returns the owning UIContext
-    UIContext& get_context() {
-        return context;
-    }
-
-    // returns the top left bounds position of this node relative to the root origin
+    // returns the top left bounds position of this node relative to the root position
     // for now it just walks to the root, TODO figure out how to make this faster
     // can only be called after init
-    glm::vec2 get_absolute_origin();
+    glm::vec2 get_absolute_pos();
 
-    // returns the absolute position of the mouse
+    // returns the position of the mouse relative to the root position
     glm::vec2 get_absolute_mouse_pos();
 
     virtual void update_impl(float dt) {}
@@ -85,10 +96,15 @@ protected:
     // does nothing if this has no parent
     void bring_to_front();
 
+    // returns whether or not this node contains the given position
+    // pos is relative to this nodes bounds
+    // by default, just tests against the node bounds
+    virtual bool hit_test(glm::vec2 pos);
+
     // returns the foremost child that contains this position and is hit testable
     // returns None otherwise
     // pos is relative to this nodes bounds
-    std::optional<UINode*> hit_test(glm::vec2 pos);
+    std::optional<UINode*> find_hit_child(glm::vec2 pos);
 
     // overriding this to false is useful to create decorative nodes that don't capture the mouse
     virtual bool hit_testable() const   { return true; }
@@ -119,6 +135,32 @@ protected:
     virtual void on_focus_leave_impl()      {}
     virtual void on_focus_gained_impl()     {}
     virtual void on_focus_lost_impl()       {}
+
+    // tells the context to destroy this node
+    void destroy();
+
+    // resolves this nodes bounds and recursively resolves all child bounds 
+    void resolve_bounds();
+
+    // these get called when bounds get changed
+    // TODO decide when to call these. 
+    //   Calling them inside resolve_bounds() doesn't seem like too good of an idea because
+    //   they would be operating on a tree that is currently being modified
+    //   maybe we can give them to the context to call later?
+    //   don't really want the context to have to handle the internal workings of resizing
+    // virtual void on_reposition() {};
+    // virtual void on_resize() {};
+
+private:
+    // adds the child to the node and returns a reference to it
+    // this UINode takes ownership of the child
+    UINode& add_child(std::unique_ptr<UINode> child);
+
+    // removes the child from this node and deletes it
+    void remove_child(UINode* child);
+
+    // places the given child in front of all other children of this node
+    void bring_child_to_front(UINode* child);
 
     // owning UIContext
     UIContext& context;
@@ -152,21 +194,28 @@ protected:
     // set on_focus_gained(), unset on_focus_lost()
     bool focused = false;
 
-private:
-    // adds the child to the node and returns a reference to it
-    // this UINode takes ownership of the child
-    UINode& add_child(std::unique_ptr<UINode> child) {
-        assert(child != nullptr);
-        assert(child->parent == std::nullopt);
-        assert(&child->context == &context);
-        UINode& ref = *child;
-        children.push_back(std::move(child));
-        ref.parent = this;
-        return ref;
-    }
+    // represents a rectangle in normalized parent coordinates, 
+    //   so (0, 0) is the parent origin, (1, 1) is the parent bottom right corner
+    // for an axis, if min != max, this nodes bounds should stretch to fill
+    //   if min == max, then it just gives a reference point for the pivot
+    glm::vec2 anchor_min = {0, 0};
+    glm::vec2 anchor_max = {0, 0};
 
-    // places the given child in front of all other children of this node
-    void bring_child_to_front(UINode* child);
+    // represents a point in normalized coordinates for this node
+    // for an axis, if anchor min == max, then pivot tells what coordinate of this node 
+    //   that needs to overlap with the anchor coordinate in the parent
+    glm::vec2 pivot = {0, 0};
+
+    // pixel offset applied to the position after anchor and pivot are resolved
+    glm::vec2 offset;
+
+    // manually set size in pixels, only applies along an axis when anchors are the same
+    glm::vec2 fixed_dim;
+
+    // pixel insets from each anchored edge, so positive margin shrinks size 
+    // only active when anchoring is active for that axis
+    glm::vec2 margin_min = {0, 0};   // left/top
+    glm::vec2 margin_max = {0, 0};   // right/bottom
 };
 
 }

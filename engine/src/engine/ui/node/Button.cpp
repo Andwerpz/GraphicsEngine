@@ -5,14 +5,15 @@
 namespace engine::ui {
 
 Button::Button(
-    UIContext& context,
-    std::function<void()> callback,
-    UIRect bounds
-) : UINode(context, bounds),
+    UIContext& context
+) : Container(context),
     callback(callback)
 {
     // do nothing
 }
+
+Button::Button(UIContext& context, std::function<void()> callback) : 
+    Container(context), callback(callback) {}
 
 void Button::update_impl(float dt) {
     // do nothing
@@ -29,7 +30,7 @@ void Button::render_impl(UIRenderer& renderer) {
     else {
         color = NORMAL_COLOR;
     }
-    renderer.draw_rect({{0, 0}, bounds.dim}, color);
+    renderer.draw_rect({{0, 0}, get_dim()}, color);
 }
 
 bool Button::on_mouse_button(const MouseButtonEvent& ev) {

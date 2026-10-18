@@ -1,5 +1,6 @@
 #pragma once
 #include <chrono>
+#include <set>
 
 #include <engine/asset/Font.h>
 #include <engine/app/input/InputHandler.h>
@@ -7,7 +8,7 @@
 #include <engine/app/input/MouseButtonEvent.h>
 #include <engine/ui/UIRenderer.h>
 #include <engine/ui/UINode.h>
-#include <engine/ui/node/UIRoot.h>
+#include <engine/ui/node/Container.h>
 
 namespace engine::ui {
 
@@ -28,7 +29,9 @@ public:
         engine::graphics::RenderTarget& target
     );
 
-    UIRoot& get_root() {
+    ~UIContext();
+
+    Container& get_root() {
         return root;
     }
 
@@ -49,6 +52,13 @@ public:
     // get references to resources managed by the context
     Font& get_font(std::string_view addr, float size);
 
+protected:
+    friend class UINode;
+    
+    // UINodes should call this to notify the context that they want to be destroyed
+    // the context will destroy this node at the next safe moment to do so
+    void destroy_node(UINode* node);
+
 private:
     // -- INPUT HANDLING --
     // returns the chain of UINodes containing this position, excluding the root
@@ -61,8 +71,9 @@ private:
     // if None is provided, then the returned chain will be empty
     std::vector<UINode*> chain_to(std::optional<UINode*> node);
 
-    // updates hover_chain with the current mouse_pos
-    void update_hover_chain();
+    // updates hover_chain to be the new chain
+    // calls mouse enter/leave handlers on the relevant nodes
+    void update_hover_chain(std::vector<UINode*> chain);
 
     // updates captured/focused node
     // calls focus/capture gained/lost handlers on the relevant nodes
@@ -74,7 +85,7 @@ private:
     UIRenderer renderer;
 
     // root node managed by the UIContext
-    UIRoot root;
+    Container root;
 
     // last time update() was called on this UIContext
     // used to compute dt to give to root node
@@ -104,6 +115,11 @@ private:
     // -- ASSETS --
     typedef std::pair<std::string, float> font_key_t;
     std::map<font_key_t, Font> fonts;
+
+    // -- DESTRUCTION --
+    // set of nodes that want to be destroyed
+    // will destroy these nodes in the next update()
+    std::set<UINode*> to_destroy;
 };
 
 }

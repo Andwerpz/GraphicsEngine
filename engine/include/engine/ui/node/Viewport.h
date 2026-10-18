@@ -20,7 +20,7 @@ public:
     Viewport(
         UIContext& context,
         GraphicsDevice& device,
-        UIRect bounds
+        glm::vec2 dim
     );
 
     Texture& get_render_texture() {

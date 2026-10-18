@@ -8,9 +8,8 @@ Label::Label(
     UIContext& context,
     std::string text,
     std::string_view font_addr,
-    float font_size,
-    UIRect bounds
-) : UINode(context, bounds),
+    float font_size
+) : UINode(context),
     text(text),
     font(context.get_font(font_addr, font_size))
 {
@@ -19,9 +18,8 @@ Label::Label(
 
 Label::Label(
     UIContext& context,
-    std::string text,
-    UIRect bounds
-) : UINode(context, bounds),
+    std::string text
+) : UINode(context),
     text(text),
     font(context.get_font("engine://res/fonts/consolas.ttf", 12.0))
 {
@@ -36,7 +34,7 @@ void Label::render_impl(UIRenderer& renderer) {
     // by default, left and top align the text
     glm::vec2 pen = {0, 0};
     pen.y += font.get_ascent();
-    glm::vec2 center = bounds.dim / 2.0f;
+    glm::vec2 center = get_dim() / 2.0f;
 
     // vertical alignment
     if(vertical_centering) {

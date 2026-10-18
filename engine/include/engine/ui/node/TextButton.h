@@ -15,8 +15,7 @@ public:
         std::string text,
         std::string_view font_addr,
         float font_size,
-        std::function<void()> function,
-        UIRect bounds
+        std::function<void()> function
     );
 
     Label& get_label() {

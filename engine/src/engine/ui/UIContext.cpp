@@ -13,14 +13,61 @@ UIContext::UIContext(
     engine::graphics::RenderTarget& target
 ) :
     renderer(device, target),
-    root(*this, {{0, 0}, {target.get_width(), target.get_height()}})
+    root(*this)
 {
+    root.set_fixed_dim(glm::vec2(target.get_width(), target.get_height()));
+
     auto current_time = std::chrono::steady_clock::now();
     auto current_time_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(current_time.time_since_epoch());
     last_update_time_ns = current_time_ns;
 }
 
+UIContext::~UIContext() {
+    // do nothing
+}
+
 void UIContext::update() {
+    // destroy nodes
+    while(!to_destroy.empty()) {
+        // copy to_destroy into batch because new nodes may want to be destroyed 
+        // when we are destroying the ones that currently want to be destroyed. 
+        std::set<UINode*> batch = to_destroy;
+        for(auto node : batch) {
+            // update hover chain
+            // if the node appears in the hover chain, remove it and everything after it 
+            auto it = std::find(hover_chain.begin(), hover_chain.end(), node);
+            std::vector<UINode*> new_chain(hover_chain.begin(), it);
+            update_hover_chain(new_chain);
+
+            // update captured/focused node
+            // if the deleted node subtree contains the captured/focused node, we need to reset them
+            auto in_subtree = [](UINode* node, UINode* subtree_root) -> bool {
+                while(true) {
+                    if(node == subtree_root) return true;
+                    if(!node->parent.has_value()) break;
+                    node = node->parent.value();
+                }
+                return false;
+            };
+            if(captured_node.has_value() && in_subtree(captured_node.value(), node)) {
+                update_captured_node();
+            }
+            if(focused_node.has_value() && in_subtree(focused_node.value(), node)) {
+                update_focused_node();
+            }
+
+            // remove node from parent
+            assert(node->parent.has_value());
+            node->parent.value()->remove_child(node);
+        }
+
+        // remove all nodes in to_destroy that were in the previous batch
+        // all the nodes remaining should be strictly non-children of the previous batch
+        std::erase_if(to_destroy, [&batch](UINode* node) {
+            return batch.contains(node);
+        });
+    }
+
     // update nodes
     auto current_time = std::chrono::steady_clock::now();
     auto current_time_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(current_time.time_since_epoch());
@@ -31,11 +78,14 @@ void UIContext::update() {
 
     // update hover chain
     if(!captured_node.has_value()) {
-        update_hover_chain();
+        update_hover_chain(hit_test(mouse_pos));
     }
 }
 
 void UIContext::render() {
+    // resolve bounds
+    root.resolve_bounds();
+
     // gather draw commands
     root.render(renderer);
 
@@ -49,13 +99,13 @@ void UIContext::on_cursor_position(const CursorPositionEvent& ev) {
     // when captured, mouse input only goes to captured node
     if(captured_node.has_value()) {
         CursorPositionEvent _ev = ev;
-        _ev.pos -= captured_node.value()->get_absolute_origin();
+        _ev.pos -= captured_node.value()->get_absolute_pos();
         captured_node.value()->on_cursor_position(_ev);
         return;
     }
 
     // mouse move event goes to hovered node
-    update_hover_chain();
+    update_hover_chain(hit_test(mouse_pos));
     glm::vec2 origin = root.bounds.pos;
     for(int i = 0; i < hover_chain.size(); i++) {
         UINode* node = hover_chain[i];
@@ -95,7 +145,7 @@ void UIContext::on_mouse_button(const MouseButtonEvent& ev) {
         }
         case MouseButtonAction::Release: {
             // update hover chain, it was frozen during mouse drag
-            update_hover_chain();
+            update_hover_chain(hit_test(mouse_pos));
 
             // send mouse release to captured node
             if(captured_node.has_value()) {
@@ -145,12 +195,42 @@ engine::asset::Font& UIContext::get_font(std::string_view addr, float size) {
     return fonts.at(key);
 }
 
+void UIContext::destroy_node(UINode* node) {
+    // shouldn't be able to destroy the root
+    assert(node != &root);
+
+    // see if we're already destroying an ancestor of this node
+    {
+        UINode* ptr = node;
+        while(true) {
+            if(to_destroy.contains(ptr)) {
+                return;
+            }
+            if(!ptr->parent.has_value()) break;
+            ptr = ptr->parent.value();
+        }
+        assert(ptr == &root);
+    }
+
+    // see if there are children of this node we're destroying
+    std::erase_if(to_destroy, [node](const UINode* queued) {
+        while(queued->parent.has_value()) {
+            queued = queued->parent.value();
+            if(queued == node) return true;
+        }
+        return false;
+    });
+    
+    // add to set
+    to_destroy.insert(node);
+}
+
 std::vector<UINode*> UIContext::hit_test(glm::vec2 pos) {
     std::vector<UINode*> res;
     UINode* node_ptr = &root;
     while(true) {
         pos -= node_ptr->bounds.pos;
-        std::optional<UINode*> hit = node_ptr->hit_test(pos);
+        std::optional<UINode*> hit = node_ptr->find_hit_child(pos);
         if(!hit.has_value()) break;
         res.push_back(hit.value());
         node_ptr = hit.value();
@@ -172,9 +252,8 @@ std::vector<UINode*> UIContext::chain_to(std::optional<UINode*> node) {
     return chain;
 }
 
-void UIContext::update_hover_chain() {
+void UIContext::update_hover_chain(std::vector<UINode*> new_chain) {
     // figure out length of shared prefix
-    std::vector<UINode*> new_chain = hit_test(mouse_pos);
     int common = 0;
     while(common < hover_chain.size() && common < new_chain.size()) {
         if(hover_chain[common] != new_chain[common]) break;

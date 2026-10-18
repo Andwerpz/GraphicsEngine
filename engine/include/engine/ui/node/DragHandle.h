@@ -1,26 +1,24 @@
 #pragma once
 #include <functional>
-#include <engine/ui/UINode.h>
+#include <engine/ui/node/Container.h>
 
 namespace engine::ui {
 
 // a DragHandle knows how to get dragged by the user pressing on it and moving the cursor
+// it allows a user to register callbacks to get drag events
 
-class DragHandle : public UINode {
+class DragHandle : public Container {
 public:
     DragHandle(
-        UIContext& context,
-        UIRect bounds
-    ) : UINode(context, bounds) {}
+        UIContext& context
+    ) : Container(context) {}
 
     void set_on_drag_begin(std::function<void()> _on_drag_begin) {
         on_drag_begin = _on_drag_begin;
     }
-
     void set_on_drag_end(std::function<void()> _on_drag_end) {
         on_drag_end = _on_drag_end;
     }
-
     void set_on_move(std::function<void(glm::vec2)> _on_move) {
         on_move = _on_move;
     }
