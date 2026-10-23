@@ -202,24 +202,41 @@ void GLRenderingProgramInvocation::draw_impl(
     }
     else assert(false);
 
-    // misc settings 
-    // TODO move these raw OpenGL calls into GLGraphicsDevice where the context is managed
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+    // set viewport
     gl_device.gl_set_viewport(
         *context, 
         0, 0, 
         render_target.value().get().get_width(),
         render_target.value().get().get_height()
     );
+
+    // clear render target
+    // do this before setting clip rect as internally this disables scissor to clear the entire render target
+    glClearColor(0.0, 0.0, 0.0, 0.0);
+    render_target.value().get().clear(clear_flags);
+
+    // set clip
+    if(clipping) {
+        glEnable(GL_SCISSOR_TEST);
+        gl_device.gl_set_scissor(
+            *context,
+            clip_min_x, clip_min_y,
+            clip_width, clip_height
+        );
+    }
+    else {
+        glDisable(GL_SCISSOR_TEST);
+    }
+
+    // misc settings 
+    // TODO move these raw OpenGL calls into GLGraphicsDevice where the context is managed
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
     if(depth_testing) 
         glEnable(GL_DEPTH_TEST);
     else 
         glDisable(GL_DEPTH_TEST);
-
-    glClearColor(0.0, 0.0, 0.0, 0.0);
-    render_target.value().get().clear(clear_flags);
-
+    
     // execute program
     gl_device.gl_bind_rendering_program(*context, gl_program);
     if(gl_vertex_array.value().has_index_buffer()) {

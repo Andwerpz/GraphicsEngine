@@ -5,8 +5,9 @@
 #include <map>
 #include <glm/glm.hpp>
 
-#include "KeyEvent.h"
 #include "MouseButtonEvent.h"
+#include "ScrollEvent.h"
+#include "KeyEvent.h"
 
 namespace engine::app {
 
@@ -19,11 +20,6 @@ class TaskLoop;
 struct CursorPositionEvent {
     // position is given relative to the top left corner of the window
     glm::vec2 pos;
-};
-
-struct ScrollEvent {
-    double xoff;    // positive indicates scrolling right
-    double yoff;    // positive indicates scrolling up
 };
 
 class InputHandler {

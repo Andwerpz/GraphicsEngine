@@ -30,24 +30,30 @@ void Label::update_impl(float dt) {
     // do nothing
 }
 
-void Label::render_impl(UIRenderer& renderer) {
+void Label::render_content(UIRenderer& renderer) {
     // by default, left and top align the text
     glm::vec2 pen = {0, 0};
     pen.y += font.get_ascent();
     glm::vec2 center = get_dim() / 2.0f;
 
-    // vertical alignment
-    if(vertical_centering) {
-        pen.y = center.y + (font.get_ascent() - font.get_descent()) / 2.0f;
-    }
-
-    // horizontal alignment
+    // x alignment
     if(horizontal_centering) {
         pen.x = center.x - text_width / 2.0f;
     }
+    else if(right_alignment) {
+        pen.x = get_dim().x - text_width;
+    }
+
+    // y alignment
+    if(vertical_centering) {
+        pen.y = center.y + (font.get_ascent() - font.get_descent()) / 2.0f;
+    }
+    else if(bottom_alignment) {
+        pen.y = get_dim().y - (font.get_ascent() + font.get_descent());
+    }
 
     // draw command
-    renderer.draw_text(text, pen, font);
+    renderer.draw_text(text, pen, font, color);
 
     // font debug lines
     if(false) {

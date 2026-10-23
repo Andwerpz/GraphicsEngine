@@ -3,7 +3,9 @@
 
 namespace engine::ui {
 
-struct UIRect {
+// represents some rectangular 2D region
+
+struct Bounds {
     // position of top left corner
     glm::vec2 pos;
 

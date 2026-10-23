@@ -465,6 +465,11 @@ void RenderingProgramInvocation::bind_render_target(
     // make sure we haven't validated
     assert(!validated);
 
+    // make sure we haven't already bound a render target
+    if(render_target.has_value()) {
+        engine::util::throw_error("render target has already been bound");
+    }
+
     // make sure render target is validated
     if(!target.is_validated()) {
         engine::util::throw_error("render target must be validated before being bound to program invocation");
@@ -485,6 +490,12 @@ void RenderingProgramInvocation::bind_render_target(
         depth_testing = true;
     }
     render_target.emplace(target);
+
+    // set default clip rect
+    clip_min_x = 0;
+    clip_min_y = 0;
+    clip_width = target.get_width();
+    clip_height = target.get_height();
 }
 
 void RenderingProgramInvocation::draw(
@@ -518,6 +529,22 @@ void RenderingProgramInvocation::do_clear_color(bool val) {
 void RenderingProgramInvocation::do_clear_depth(bool val) {
     if(val) clear_flags |= ClearFlags::Depth;
     else clear_flags &= ~ClearFlags::Depth;
+}
+
+void RenderingProgramInvocation::do_clipping(bool val) {
+    clipping = val;
+}
+
+void RenderingProgramInvocation::set_clip_rect(
+    int32_t min_x,
+    int32_t min_y,
+    uint32_t width,
+    uint32_t height
+) {
+    clip_min_x = min_x;
+    clip_min_y = min_y;
+    clip_width = width;
+    clip_height = height;
 }
 
 }

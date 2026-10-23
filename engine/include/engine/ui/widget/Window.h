@@ -48,8 +48,8 @@ public:
 
 private:
     void update_impl(float dt) override;
-    void render_impl(UIRenderer& renderer) override;
-    void render_overlay_impl(UIRenderer& renderer) override;
+    void render_content(UIRenderer& renderer) override;
+    void render_overlay(UIRenderer& renderer) override;
     
     // we need to extend hit testing to extend outside of the window 
     // this is so that edge grabber can work outside of the window

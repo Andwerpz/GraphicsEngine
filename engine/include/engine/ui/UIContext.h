@@ -28,7 +28,6 @@ public:
         engine::graphics::GraphicsDevice& device,
         engine::graphics::RenderTarget& target
     );
-
     ~UIContext();
 
     Container& get_root() {
@@ -41,6 +40,11 @@ public:
 
     void update();
     void render();
+
+    // returns a monotonically increasing 'ui time' in seconds
+    // time is relative to when this UIContext was constructed
+    // useful for doing time-based animations
+    double get_ui_time();
 
     // external API to send user input to this UIContext
     // the UIContext is responsible for routing these input events to the correct UINode
@@ -87,9 +91,12 @@ private:
     // root node managed by the UIContext
     Container root;
 
+    // time when this UIContext was constructed
+    std::chrono::nanoseconds construction_time_ns;
+
     // last time update() was called on this UIContext
     // used to compute dt to give to root node
-    // initialized to be the construction time
+    // initialized to be construction_time_ns
     std::chrono::nanoseconds last_update_time_ns;
 
     // position of the mouse as of the last cursor position event

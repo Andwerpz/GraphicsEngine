@@ -162,5 +162,61 @@ KeyEvent KeyEvent::translate_glfw_key_event(
         .modifier = translate_glfw_modifiers(mods)
     };
 }
+
+// returns a char if the key event can be mapped to 
+std::optional<char> KeyEvent::to_char() const {
+    // only presses and repeats produce text
+    if(action == KeyAction::Release) return std::nullopt;
+    const bool shift = has_modifier(modifier, Modifier::Shift);
+    const bool caps = has_modifier(modifier, Modifier::CapsLock);
+    const bool numlock = has_modifier(modifier, Modifier::NumLock);
+
+    // letters, caps lock and shift cancel each other out
+    if(key >= Key::A && key <= Key::Z) {
+        char base = static_cast<char>(static_cast<int>(key) - static_cast<int>(Key::A));
+        return (shift != caps) ? char('A' + base) : char('a' + base);
+    }
+
+    // top-row digits
+    if(key >= Key::Num0 && key <= Key::Num9) {
+        int digit = static_cast<int>(key) - static_cast<int>(Key::Num0);
+        static constexpr char SHIFTED[] = ")!@#$%^&*(";
+        return shift ? SHIFTED[digit] : char('0' + digit);
+    }
+
+    // keypad digits only type when num lock is on (otherwise they navigate)
+    if(key >= Key::NumPad0 && key <= Key::NumPad9) {
+        if(!numlock) return std::nullopt;
+        return char('0' + (static_cast<int>(key) - static_cast<int>(Key::NumPad0)));
+    }
+
+    switch(key) {
+        // punctuation
+        case Key::Apostrophe:   return shift ? '"' : '\'';
+        case Key::Comma:        return shift ? '<' : ',';
+        case Key::Minus:        return shift ? '_' : '-';
+        case Key::Period:       return shift ? '>' : '.';
+        case Key::Slash:        return shift ? '?' : '/';
+        case Key::Semicolon:    return shift ? ':' : ';';
+        case Key::Equal:        return shift ? '+' : '=';
+        case Key::LeftBracket:  return shift ? '{' : '[';
+        case Key::Backslash:    return shift ? '|' : '\\';
+        case Key::RightBracket: return shift ? '}' : ']';
+        case Key::GraveAccent:  return shift ? '~' : '`';
+
+        // numpad operators
+        case Key::NumPadDecimal:  return numlock ? std::optional<char>('.') : std::nullopt;
+        case Key::NumPadDivide:   return '/';
+        case Key::NumPadMultiply: return '*';
+        case Key::NumPadSubtract: return '-';
+        case Key::NumPadAdd:      return '+';
+        case Key::NumPadEqual:    return '=';
+
+        // spacebar
+        case Key::Space: return ' ';
+
+        default: return std::nullopt;
+    }
+}
     
 }

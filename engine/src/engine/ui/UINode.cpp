@@ -53,8 +53,29 @@ void UINode::update(float dt) {
 }
 
 void UINode::render(UIRenderer& renderer) {
+    bool is_clipping = false;
+    auto set_clip = [&](bool should_clip) -> void {
+        if(should_clip == is_clipping) return;
+        if(should_clip) renderer.push_clip({{0, 0}, bounds.dim});
+        else renderer.pop_clip();
+        is_clipping = should_clip;
+    };
+
     renderer.push_origin(bounds.pos);
 
+    set_clip(should_clip_content);
+    render_content(renderer);
+
+    set_clip(should_clip_children);
+    for(auto& child : children) {
+        child->render(renderer);
+    }
+
+    set_clip(should_clip_overlay);
+    render_overlay(renderer);
+
+    set_clip(false);
+    
     // debug
     if(false) {
         auto draw_outline = [&](float inset, glm::vec4 color) {
@@ -85,12 +106,6 @@ void UINode::render(UIRenderer& renderer) {
             if(focused)  draw_outline(4.0f, {0.0, 1.0, 1.0, 1.0});   // cyan,       innermost
         }
     }
-
-    render_impl(renderer);
-    for(auto& child : children) {
-        child->render(renderer);
-    }
-    render_overlay_impl(renderer);
 
     renderer.pop_origin();
 }
@@ -137,41 +152,13 @@ void UINode::destroy() {
     context.destroy_node(this);
 }
 
-void UINode::resolve_bounds() {
-    // resolve this node
-    if(parent.has_value()) {
-        // non-root node
-        glm::vec2 parent_dim = parent.value()->get_dim();
-        UIRect next;
-        for(int a = 0; a < 2; a++) {
-            // resolve anchor + pivot
-            if(anchor_min[a] != anchor_max[a]) {
-                // using anchor, stretch to fill
-                float lo = parent_dim[a] * anchor_min[a] + margin_min[a];
-                float hi = parent_dim[a] * anchor_max[a] - margin_max[a];
-                next.dim[a] = hi - lo;
-                next.pos[a] = lo;
-            }
-            else {
-                // not using anchor, use fixed size + pivot to position
-                next.dim[a] = fixed_dim[a];
-                next.pos[a] = parent_dim[a] * anchor_min[a]
-                            - next.dim[a] * pivot[a];
-            }
-            next.pos[a] += offset[a];
-            next.dim[a] = std::max(next.dim[a], 0.f);
-        }
-        bounds = next;
-    }
-    else {
-        // root node
-        // just use fixed dim and offset
-        bounds = UIRect {offset, fixed_dim};
-    }
-
-    // resolve child bounds
-    for(auto& child : children) {
-        child->resolve_bounds();
+void UINode::resolve_layout() {
+    constexpr int MAX_ITERS = 4;
+    int itercnt = 0;
+    while(resolve_bounds()) {
+        itercnt ++;
+        assert(itercnt <= MAX_ITERS);
+        dispatch_bound_events();
     }
 }
 
@@ -216,6 +203,70 @@ void UINode::bring_child_to_front(UINode* node) {
     std::unique_ptr<UINode> child = std::move(children[child_ind]);
     children.erase(children.begin() + child_ind);
     children.push_back(std::move(child));
+}
+
+bool UINode::resolve_bounds() {
+    bool retval = false;
+
+    // resolve this node
+    glm::vec2 old_pos = bounds.pos;
+    glm::vec2 old_dim = bounds.dim;
+    if(parent.has_value()) {
+        // non-root node
+        glm::vec2 parent_dim = parent.value()->get_dim();
+        Bounds next;
+        for(int a = 0; a < 2; a++) {
+            // resolve anchor + pivot
+            if(anchor_min[a] != anchor_max[a]) {
+                // using anchor, stretch to fill
+                float lo = parent_dim[a] * anchor_min[a] + margin_min[a];
+                float hi = parent_dim[a] * anchor_max[a] - margin_max[a];
+                next.dim[a] = hi - lo;
+                next.pos[a] = lo;
+            }
+            else {
+                // not using anchor, use fixed size + pivot to position
+                next.dim[a] = fixed_dim[a];
+                next.pos[a] = parent_dim[a] * anchor_min[a]
+                            - next.dim[a] * pivot[a];
+            }
+            next.pos[a] += offset[a];
+            next.dim[a] = std::max(next.dim[a], 0.f);
+        }
+        bounds = next;
+    }
+    else {
+        // root node
+        // just use fixed dim and offset
+        bounds = Bounds {offset, fixed_dim};
+    }
+    repositioned = bounds.pos != old_pos;
+    resized = bounds.dim != old_dim;
+    retval = repositioned || resized;
+
+    // resolve child bounds
+    for(auto& child : children) {
+        retval |= child->resolve_bounds();
+    }
+
+    return retval;
+}
+
+void UINode::dispatch_bound_events() {
+    // events
+    if(repositioned) {
+        on_reposition();
+        repositioned = false;
+    }
+    if(resized) {
+        on_resize();
+        resized = false;
+    }
+
+    // dispatch child events
+    for(auto& child : children) {
+        child->dispatch_bound_events();
+    }
 }
 
 }

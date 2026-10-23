@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <optional>
 
 #include "Modifier.h"
 
@@ -101,6 +102,10 @@ struct KeyEvent {
     Modifier modifier;
 
     static KeyEvent translate_glfw_key_event(int key, int scancode, int action, int mods);
+    
+    // returns a char if the key event would type a char into a text editor
+    // otherwise returns None
+    std::optional<char> to_char() const;
 };
 
 }

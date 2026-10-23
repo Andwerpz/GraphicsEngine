@@ -5,9 +5,12 @@
 #include <engine/ui/node/Container.h>
 #include <engine/ui/node/Label.h>
 #include <engine/ui/node/Button.h>
-#include <engine/ui/node/TextButton.h>
-#include <engine/ui/node/Viewport.h>
-#include <engine/ui/node/Window.h>
+#include <engine/ui/node/Rect.h>
+#include <engine/ui/widget/TextButton.h>
+#include <engine/ui/widget/Viewport.h>
+#include <engine/ui/widget/Window.h>
+#include <engine/ui/widget/TextField.h>
+#include <engine/ui/widget/ScrollContainer.h>
 #include <glad/glad.h>
 
 #include <engine/asset/Font.h>
@@ -97,7 +100,7 @@ inline void test_ui_renderer() {
                 ui_renderer.draw_line({sx, sy}, {ex, ey}, 1, {1, 1, 1, 1});
             }
 
-            ui_renderer.draw_text("holy moly, is this working?", {50, 550}, font);
+            ui_renderer.draw_text("holy moly, is this working?", {50, 550}, font, glm::vec4(1));
             
             ui_renderer.render();
 
@@ -110,8 +113,8 @@ inline void test_ui_renderer() {
     application.run();
 }
 
-inline void test_load() {
-    auto font = engine::asset::Font::load("res/fonts/Consolas-Regular.ttf", 24.0f);
+inline void test_load_font() {
+    auto font = engine::asset::Font::load("res/fonts/china.ttf", 24.0f);
     auto& atlas = font.get_atlas();
     atlas.export_as_png(fs::current_path() / "atlas.png");
 }
@@ -126,41 +129,56 @@ inline void test_ui_context() {
 
     engine::ui::UIContext ui_context(device, *window_render_target);
     engine::ui::Container& root_node = ui_context.get_root();
-    auto& label = root_node.emplace_child<engine::ui::Label>(
+
+    auto& ui_window2 = root_node.emplace_child<engine::ui::Window>(
+        "sigma 16 + really long title that should really get clipped but maybe isn't getting clipped",
+        glm::vec2 {55, 220}, glm::vec2 {300, 300}
+    );
+    auto& ui_window3 = root_node.emplace_child<engine::ui::Window>(
+        "sigma 24 + really long title that should not get clipped when this window stretches out sufficiently large. How is your day going by the way, mine is going fine, got some chipotle and stuff and was thinking about eating it soon",
+        glm::vec2 {55, 220}, glm::vec2 {300, 300}
+    );
+    ui_window2.do_background_blur(true);
+    ui_window3.do_background_blur(true);
+    ui_window2.set_blur_sigma(16);
+    ui_window3.set_blur_sigma(24);
+
+    auto& scroll_container = ui_window2.emplace_child<engine::ui::ScrollContainer>();
+    scroll_container.set_anchor(glm::vec2(0), glm::vec2(1));
+    scroll_container.set_content_dim(glm::vec2(400));
+    scroll_container.do_vertical_scrolling(true);
+    // scroll_container.do_horizontal_scrolling(true);
+
+    // auto& background_rect = scroll_container.emplace_child<engine::ui::Rect>();
+    // background_rect.set_anchor(glm::vec2(0), glm::vec2(1));
+    // background_rect.set_outline_color(glm::vec4(1));
+    // background_rect.set_outline_inset(1);
+    // background_rect.do_draw_outline(true);
+
+    auto& label = scroll_container.emplace_child<engine::ui::Label>(
         "abcdefgh",
         "res/fonts/Consolas-Regular.ttf", 32.0
     );
     label.set_offset({5, 5});
     label.set_fixed_dim({200, 50});
-    auto& button = root_node.emplace_child<engine::ui::Button>(
-        [&]() -> void {
-            std::cout << "button clicked" << std::endl;
-        }
-    );
-    button.set_offset({5, 60});
-    button.set_fixed_dim({200, 50});
-    auto& text_button = root_node.emplace_child<engine::ui::TextButton>(
-        "text button",
-        "res/fonts/Consolas-Regular.ttf", 24.0,
+    auto& text_button = scroll_container.emplace_child<engine::ui::TextButton>(
         [&]() -> void {
             std::cout << "text button clicked" << std::endl;
+        },
+        "text button",
+        "res/fonts/Consolas-Regular.ttf", 24.0
+    );
+    text_button.set_offset({5, 60});
+    text_button.set_fixed_dim({200, 50});
+
+    auto& text_field = scroll_container.emplace_child<engine::ui::TextField>();
+    text_field.set_offset({5, 115});
+    text_field.set_fixed_dim({200, 20});
+    text_field.set_input_changed_callback(
+        [](const std::string& input) -> void { 
+            std::cout << "text input : " << input << std::endl; 
         }
     );
-    text_button.set_offset({5, 115});
-    text_button.set_fixed_dim({200, 50});
-    auto& ui_window2 = root_node.emplace_child<engine::ui::Window>(
-        "sigma 16",
-        glm::vec2 {55, 220}, glm::vec2 {300, 300}
-    );
-    auto& ui_window3 = root_node.emplace_child<engine::ui::Window>(
-        "sigma 24",
-        glm::vec2 {55, 220}, glm::vec2 {300, 300}
-    );
-
-    ui_window2.do_background_blur(true);
-    ui_window3.do_background_blur(true);
-    ui_window2.set_blur_sigma(16);
-    ui_window3.set_blur_sigma(24);
 
     engine::app::Application application;
 

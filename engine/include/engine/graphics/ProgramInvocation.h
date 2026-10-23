@@ -207,6 +207,12 @@ protected:
     // clear flags sent to the render target at the beginning of execution
     ClearFlags clear_flags = ClearFlags::Color | ClearFlags::Depth;
 
+    // clip rect limits the area that gets rendered to on the target
+    // by default, the clip rect contains the entire target
+    int32_t clip_min_x, clip_min_y;
+    uint32_t clip_width, clip_height;
+    bool clipping = false;
+
 	virtual void draw_impl(
         uint32_t nr_primitives, 
         uint32_t nr_instances,
@@ -243,6 +249,14 @@ public:
     void do_depth_testing(bool val);
     void do_clear_color(bool val);
     void do_clear_depth(bool val);
+
+    void do_clipping(bool val);
+    void set_clip_rect(
+        int32_t min_x,
+        int32_t min_y,
+        uint32_t width,
+        uint32_t height
+    );
 };
 
 class ComputeProgramInvocation : public ProgramInvocation {

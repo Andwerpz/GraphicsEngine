@@ -1,4 +1,4 @@
-#include <engine/ui/node/Window.h>
+#include <engine/ui/widget/Window.h>
 
 namespace engine::ui {
 
@@ -16,9 +16,10 @@ Window::Window(
     contents(UINode::emplace_child<Container>()),
     edges(UINode::emplace_child<EdgeHandle>()),
     close_button(header.emplace_child<Button>())
-{
+{   
     set_offset(pos);
     set_fixed_dim(glm::vec2(content_dim.x, content_dim.y + HEADER_HEIGHT));
+    set_should_clip_children(true);
 
     // header
     header.set_fixed_dim(glm::vec2 {content_dim.x, HEADER_HEIGHT});
@@ -33,9 +34,12 @@ Window::Window(
     // title
     // vertically center, horizontal right align title text
     title.set_fixed_dim(glm::vec2 {content_dim.x, HEADER_HEIGHT});
-    title.set_offset(glm::vec2(5, 0));
+    title.set_anchor(glm::vec2(0, 0), glm::vec2(1, 0));
+    title.set_margin_min(glm::vec2(5, 0));
+    title.set_margin_max(glm::vec2(HEADER_HEIGHT + 5, 0));
     title.do_vertical_centering(true);
     title.do_horizontal_centering(false);
+    title.set_should_clip(true);
 
     // contents
     contents.set_offset(glm::vec2(0));
@@ -92,7 +96,7 @@ void Window::update_impl(float dt) {
     // do nothing
 }
 
-void Window::render_impl(UIRenderer& renderer) {
+void Window::render_content(UIRenderer& renderer) {
     // background blur
     if(background_blur) {
         renderer.draw_blur({{0, 0}, get_dim()}, blur_sigma);
@@ -107,11 +111,12 @@ void Window::render_impl(UIRenderer& renderer) {
     renderer.draw_rect({{0, 0}, {get_dim().x, HEADER_HEIGHT}}, HEADER_COLOR);
 }
 
-void Window::render_overlay_impl(UIRenderer& renderer) {
+void Window::render_overlay(UIRenderer& renderer) {
     // outline
     renderer.draw_rect_outline(
         {{0, 0}, get_dim()}, 
-        is_active() ? ACTIVE_OUTLINE_COLOR : OUTLINE_COLOR
+        is_active() ? ACTIVE_OUTLINE_COLOR : OUTLINE_COLOR,
+        -1.0f   // draw 1px outside of window
     );
 }
 

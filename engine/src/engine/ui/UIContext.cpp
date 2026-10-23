@@ -3,7 +3,7 @@
 #include <engine/graphics/RenderTarget.h>
 #include <engine/graphics/GraphicsDevice.h>
 #include <engine/ui/UIContext.h>
-#include <engine/ui/UIRect.h>
+#include <engine/ui/Bounds.h>
 #include <engine/ui/UINode.h>
 
 namespace engine::ui {
@@ -18,8 +18,8 @@ UIContext::UIContext(
     root.set_fixed_dim(glm::vec2(target.get_width(), target.get_height()));
 
     auto current_time = std::chrono::steady_clock::now();
-    auto current_time_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(current_time.time_since_epoch());
-    last_update_time_ns = current_time_ns;
+    construction_time_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(current_time.time_since_epoch());
+    last_update_time_ns = construction_time_ns;
 }
 
 UIContext::~UIContext() {
@@ -73,7 +73,7 @@ void UIContext::update() {
     auto current_time_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(current_time.time_since_epoch());
     std::chrono::nanoseconds delta_time = current_time_ns - last_update_time_ns;
     last_update_time_ns = current_time_ns;
-    float dt = (float) ((double) delta_time.count() / 1000000000.0);
+    float dt = (float) ((double) delta_time.count() / 1e9);
     root.update(dt);
 
     // update hover chain
@@ -83,14 +83,21 @@ void UIContext::update() {
 }
 
 void UIContext::render() {
-    // resolve bounds
-    root.resolve_bounds();
+    // resolve layout
+    root.resolve_layout();
 
     // gather draw commands
     root.render(renderer);
 
     // flush draw commands
     renderer.render();
+}
+
+double UIContext::get_ui_time() {
+    auto current_time = std::chrono::steady_clock::now();
+    auto current_time_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(current_time.time_since_epoch());
+    std::chrono::nanoseconds delta_time = current_time_ns - construction_time_ns;
+    return (double) delta_time.count() / 1e9;
 }
 
 void UIContext::on_cursor_position(const CursorPositionEvent& ev) {

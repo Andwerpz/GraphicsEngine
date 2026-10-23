@@ -17,7 +17,7 @@
 #include <engine/asset/Font.h>
 #include <engine/asset/Image.h>
 
-#include <engine/ui/UIRect.h>
+#include <engine/ui/Bounds.h>
 
 namespace engine::ui {
 
@@ -55,10 +55,10 @@ public:
     );
 
     // draws an axis aligned rectangle with solid color
-    void draw_rect(UIRect rect, glm::vec4 color);
+    void draw_rect(Bounds rect, glm::vec4 color);
     
     // draws an axis aligned rectangle with the given texture
-    void draw_textured_rect(UIRect rect, Texture& texture);
+    void draw_textured_rect(Bounds rect, Texture& texture);
 
     // draws a line starting from start and ending at end
     // the end pixels are included 
@@ -70,18 +70,19 @@ public:
     // draws 4 axis-aligned lines outlining the given rect
     // the outline is drawn on the interior of the given rect
     // positive inset draws the outline rect smaller within the given rect
-    void draw_rect_outline(UIRect rect, glm::vec4 color, float inset = 0.0f);
+    void draw_rect_outline(Bounds rect, glm::vec4 color, float inset = 0.0f);
 
     // draws the given text
     // start gives the initial position of the baseline pointer 
     void draw_text(
         const std::string_view& text, 
         glm::vec2 start, 
-        Font& font
+        Font& font,
+        glm::vec4 color
     );
 
     // blurs the given rect with a fixed kernel size gaussian blur
-    void draw_blur(UIRect rect, uint32_t sigma);
+    void draw_blur(Bounds rect, uint32_t sigma);
 
     // void draw_drop_shadow();
 
@@ -97,11 +98,11 @@ public:
     // push/pop from the clip stack 
     // new clip rectangles are interpreted as relative to the current origin
     // the new clip region is the intersection between rect and the old clip region
-    void push_clip(UIRect rect);
+    void push_clip(Bounds rect);
     void pop_clip();
 
     // returns the current clip rect in absolute space
-    UIRect get_clip();
+    Bounds get_clip();
 
     // render to target using commands
     void render();
@@ -117,17 +118,17 @@ private:
     RenderTarget& target;
 
     // clip rectangle stack
-    std::stack<UIRect> clip_stack;
+    std::stack<Bounds> clip_stack;
 
     // origin stack
     std::stack<glm::vec2> origin_stack;
 
     // list of commands so far
     struct SetClip {
-        UIRect rect;
+        Bounds rect;
     };
     struct DrawRect {
-        UIRect rect;
+        Bounds rect;
         glm::vec4 color;
     };
     struct DrawLine {
@@ -136,12 +137,13 @@ private:
         glm::vec4 color;
     };
     struct DrawTexturedRect {
-        UIRect vertex_rect;
-        UIRect uv_rect;
+        Bounds vertex_rect;
+        Bounds uv_rect;
         uint64_t texture_id;
+        glm::vec4 color;
     };
     struct BlurRect {
-        UIRect rect;
+        Bounds rect;
         uint32_t sigma;
     };
     using Command = std::variant<

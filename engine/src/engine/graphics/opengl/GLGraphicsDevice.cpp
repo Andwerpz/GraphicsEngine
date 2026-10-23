@@ -902,12 +902,10 @@ void GLGraphicsDevice::gl_set_scissor(
     uint32_t width,
     uint32_t height
 ) {
-    if(width == 0 || height == 0) {
-        engine::util::throw_error("Scissor width and height must be non-zero");
-    }
-
-    // TODO
-    assert(false);
+    glScissor(
+        min_x, min_y,
+        width, height
+    );
 }
 
 void GLGraphicsDevice::gl_draw_arrays(

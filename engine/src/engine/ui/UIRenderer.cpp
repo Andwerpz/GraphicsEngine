@@ -136,11 +136,12 @@ UIRenderer::UIRenderer(
         );
         rect_invocation->set_uniform<glm::mat4>("camera.projection", projection);
 
-        // order instances are specified within instance buffer is order they will be rendered
+        // misc settings
         // TODO set alpha blending mode
         rect_invocation->do_clear_depth(false);
         rect_invocation->do_depth_testing(false);
         rect_invocation->do_clear_color(false);
+        rect_invocation->do_clipping(true);
     }
 
     // blur
@@ -171,19 +172,20 @@ UIRenderer::UIRenderer(
         blur_invocation_vertical->bind_sampled_texture({0, 1}, *blur_texture, *default_sampler);
         blur_invocation_vertical->set_uniform("settings.is_vertical", 1);
         blur_invocation_vertical->do_clear_color(false);
+        blur_invocation_vertical->do_clipping(true);
     }
 }
 
-void UIRenderer::draw_rect(UIRect rect, glm::vec4 color) {
+void UIRenderer::draw_rect(Bounds rect, glm::vec4 color) {
     rect.pos += get_origin();
     commands.push_back(DrawRect {rect, color});
 }
 
-void UIRenderer::draw_textured_rect(UIRect rect, Texture& texture) {
+void UIRenderer::draw_textured_rect(Bounds rect, Texture& texture) {
     rect.pos += get_origin();
     uint64_t texture_id = texture.get_texture_id();
     textures.insert({texture_id, &texture});
-    commands.push_back(DrawTexturedRect {rect, {{0, 0}, {1, 1}}, texture_id});
+    commands.push_back(DrawTexturedRect {rect, {{0, 0}, {1, 1}}, texture_id, glm::vec4(1)});
 }
 
 void UIRenderer::draw_line(
@@ -197,9 +199,9 @@ void UIRenderer::draw_line(
     commands.push_back(DrawLine {start, end, width, color});
 }
 
-void UIRenderer::draw_rect_outline(UIRect rect, glm::vec4 color, float inset) {
+void UIRenderer::draw_rect_outline(Bounds rect, glm::vec4 color, float inset) {
     rect.dim = rect.dim - glm::vec2(inset * 2.0f);
-    glm::vec2 c0 = rect.pos;
+    glm::vec2 c0 = rect.pos + glm::vec2(inset);
     glm::vec2 c1 = c0;  c1.x += rect.dim.x - 1;
     glm::vec2 c2 = c1;  c2.y += rect.dim.y - 1;
     glm::vec2 c3 = c2;  c3.x -= rect.dim.x - 1;
@@ -212,7 +214,8 @@ void UIRenderer::draw_rect_outline(UIRect rect, glm::vec4 color, float inset) {
 void UIRenderer::draw_text(
     const std::string_view& text, 
     glm::vec2 start, 
-    Font& font
+    Font& font,
+    glm::vec4 color
 ) {
     // get font atlas texture
     Image& atlas = font.get_atlas();
@@ -264,14 +267,15 @@ void UIRenderer::draw_text(
 
         commands.push_back(DrawTexturedRect {
             {pos, dim}, {uv_pos, uv_dim},
-            texture_id
+            texture_id,
+            color
         });
         
         pen.x += glyph.advance_x;
     }
 }
 
-void UIRenderer::draw_blur(UIRect rect, uint32_t sigma) {
+void UIRenderer::draw_blur(Bounds rect, uint32_t sigma) {
     rect.pos += get_origin();
     commands.push_back(BlurRect {rect, sigma});
 }
@@ -293,19 +297,19 @@ glm::vec2 UIRenderer::get_origin() {
     return origin_stack.top();
 }
 
-void UIRenderer::push_clip(UIRect rect) {
+void UIRenderer::push_clip(Bounds rect) {
     // new rect is relative to current origin
     rect.pos += get_origin();
 
     // intersect along both axes
-    UIRect old_rect = get_clip();
+    Bounds old_rect = get_clip();
     glm::vec2 min = glm::max(rect.pos, old_rect.pos);
     glm::vec2 max = glm::min(rect.pos + rect.dim, old_rect.pos + old_rect.dim);
-    rect = UIRect {min, max - min};
+    rect = Bounds {min, max - min};
 
     // check for degenerate clipping rectangle
     if(rect.dim.x <= 0 || rect.dim.y <= 0) {
-        rect = UIRect {{0, 0}, {0, 0}};
+        rect = Bounds {{0, 0}, {0, 0}};
     }
     
     clip_stack.push(rect);
@@ -321,7 +325,7 @@ void UIRenderer::pop_clip() {
     commands.push_back(SetClip {clip_stack.top()});
 }
 
-UIRect UIRenderer::get_clip() {
+Bounds UIRenderer::get_clip() {
     assert(clip_stack.size() >= 1);
     return clip_stack.top();
 }
@@ -336,6 +340,10 @@ void UIRenderer::render() {
     uint64_t gpu_buf_ptr = 0;
     uint64_t gpu_instance_ptr = 0;
     std::optional<Texture*> bound_texture = std::nullopt;
+
+    // current clip rect state
+    int32_t clip_min_x = 0, clip_min_y = 0;
+    uint32_t clip_width = 0, clip_height = 0;
 
     auto flush_instances = [&]() {
         if(cpu_instance_cnt == 0) return;
@@ -361,6 +369,12 @@ void UIRenderer::render() {
             );
         }
 
+        // set clip rect
+        rect_invocation->set_clip_rect(
+            clip_min_x, clip_min_y,
+            clip_width, clip_height
+        );
+
         // render
         rect_invocation->draw(2, cpu_instance_cnt, 0, gpu_instance_ptr);
 
@@ -371,14 +385,6 @@ void UIRenderer::render() {
 
         cpu_buf_ptr = 0;
         cpu_instance_cnt = 0;
-    };
-    auto bind_texture = [&](uint64_t texture_id) {
-        assert(textures.contains(texture_id));
-        Texture* texture = textures.at(texture_id);
-        if(bound_texture.has_value() && texture->get_texture_id() != bound_texture.value()->get_texture_id()) {
-            flush_instances();
-        }
-        bound_texture = texture;
     };
     auto write_instance = [&](
         glm::mat4 transform, 
@@ -418,14 +424,52 @@ void UIRenderer::render() {
             flush_instances();
         }
     };
+    auto bind_texture = [&](uint64_t texture_id) {
+        assert(textures.contains(texture_id));
+        Texture* texture = textures.at(texture_id);
+        if(bound_texture.has_value() && texture->get_texture_id() != bound_texture.value()->get_texture_id()) {
+            flush_instances();
+        }
+        bound_texture = texture;
+    };
+    auto set_clip = [&](
+        int32_t min_x, int32_t min_y,
+        uint32_t width, uint32_t height
+    ) { 
+        // see if nothing changed
+        if(clip_min_x == min_x && clip_min_y == min_y && clip_width == width && clip_height == height) {
+            return;
+        }
 
+        // flush instances and set clip
+        flush_instances();
+        clip_min_x = min_x;
+        clip_min_y = min_y;
+        clip_width = width;
+        clip_height = height;
+
+        rect_invocation->set_clip_rect(min_x, min_y, width, height);
+        blur_invocation_vertical->set_clip_rect(min_x, min_y, width, height);
+    };
+
+    // reset clip rect
+    set_clip(0, 0, target.get_width(), target.get_height());
+
+    // evaluate commands
     for(Command _cmd : commands) {
         if(std::holds_alternative<SetClip>(_cmd)) {
-            assert(false);
+            SetClip cmd = std::get<SetClip>(_cmd);
+            Bounds rect = cmd.rect;
+
+            int32_t min_x = glm::round(rect.pos.x);
+            int32_t min_y = glm::round(rect.pos.y);
+            uint32_t width = glm::round(rect.dim.x);
+            uint32_t height = glm::round(rect.dim.y);
+            set_clip(min_x, min_y, width, height);
         }
         else if(std::holds_alternative<DrawRect>(_cmd)) {
             DrawRect cmd = std::get<DrawRect>(_cmd);
-            UIRect rect = cmd.rect;
+            Bounds rect = cmd.rect;
             glm::vec4 color = cmd.color;
 
             glm::mat4 transform(
@@ -489,9 +533,10 @@ void UIRenderer::render() {
         }
         else if(std::holds_alternative<DrawTexturedRect>(_cmd)) {
             DrawTexturedRect cmd = std::get<DrawTexturedRect>(_cmd);
-            UIRect vertex_rect = cmd.vertex_rect;
-            UIRect uv_rect = cmd.uv_rect;
+            Bounds vertex_rect = cmd.vertex_rect;
+            Bounds uv_rect = cmd.uv_rect;
             uint64_t texture_id = cmd.texture_id;
+            glm::vec4 color = cmd.color;
 
             // bind texture
             bind_texture(texture_id);
@@ -505,14 +550,14 @@ void UIRenderer::render() {
             );
             write_instance(
                 transform,
-                {1, 1, 1, 1}, 
+                color, 
                 {uv_rect.pos, uv_rect.pos + uv_rect.dim},
                 true
             );
         }
         else if(std::holds_alternative<BlurRect>(_cmd)) {
             BlurRect cmd = std::get<BlurRect>(_cmd);
-            UIRect rect = cmd.rect;
+            Bounds rect = cmd.rect;
             uint32_t sigma = cmd.sigma;
 
             // flush rects
@@ -553,7 +598,7 @@ void UIRenderer::reset() {
     while(clip_stack.size() != 0) {
         clip_stack.pop();
     }
-    clip_stack.push(UIRect {{0, 0}, {target.get_width(), target.get_height()}});
+    clip_stack.push(Bounds {{0, 0}, {target.get_width(), target.get_height()}});
 }
     
 }

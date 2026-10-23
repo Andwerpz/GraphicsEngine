@@ -9,8 +9,16 @@
 #include <engine/app/input/InputHandler.h>
 #include <engine/app/input/KeyEvent.h>
 #include <engine/app/input/MouseButtonEvent.h>
-#include <engine/ui/UIRect.h>
+#include <engine/ui/Bounds.h>
 #include <engine/ui/UIRenderer.h>
+
+// TODO make these UI primitives
+// - ToggleButton
+
+// TODO make these widgets
+// - ListViewer
+// - TreeListViewer
+// - ContextMenu
 
 namespace engine::ui {
 
@@ -78,10 +86,10 @@ protected:
     virtual void update_impl(float dt) {}
 
     // this gets called before all the children get rendered
-    virtual void render_impl(UIRenderer& renderer) {}
+    virtual void render_content(UIRenderer& renderer) {}
 
     // this gets called after all the children get rendered
-    virtual void render_overlay_impl(UIRenderer& renderer) {}
+    virtual void render_overlay(UIRenderer& renderer) {}
 
     // constructs the child, adds it to the node, and returns a reference to it
     template<typename T, typename... Args>
@@ -107,10 +115,20 @@ protected:
     std::optional<UINode*> find_hit_child(glm::vec2 pos);
 
     // overriding this to false is useful to create decorative nodes that don't capture the mouse
-    virtual bool hit_testable() const   { return true; }
+    virtual bool hit_testable() const { return true; }
 
     // overriding this to true will allow this node to become focusable and receive keyboard input
-    virtual bool focusable() const      { return false; }
+    virtual bool focusable() const { return false; }
+
+    // sets all clip flags to the passed value
+    void set_should_clip(bool val) { 
+        set_should_clip_content(val);
+        set_should_clip_children(val);
+        set_should_clip_overlay(val);
+    }
+    void set_should_clip_content(bool val) { should_clip_content = val; }
+    void set_should_clip_children(bool val) { should_clip_children = val; }
+    void set_should_clip_overlay(bool val) { should_clip_overlay = val; }
 
     // for events except for cursor position, return true if the event was consumed
     virtual void on_cursor_position(const CursorPositionEvent&) {}
@@ -139,17 +157,12 @@ protected:
     // tells the context to destroy this node
     void destroy();
 
-    // resolves this nodes bounds and recursively resolves all child bounds 
-    void resolve_bounds();
+    // repeatedly resolves bounds and dispatches bound events in this subtree until nothing changes
+    void resolve_layout();
 
     // these get called when bounds get changed
-    // TODO decide when to call these. 
-    //   Calling them inside resolve_bounds() doesn't seem like too good of an idea because
-    //   they would be operating on a tree that is currently being modified
-    //   maybe we can give them to the context to call later?
-    //   don't really want the context to have to handle the internal workings of resizing
-    // virtual void on_reposition() {};
-    // virtual void on_resize() {};
+    virtual void on_reposition() {};
+    virtual void on_resize() {};
 
 private:
     // adds the child to the node and returns a reference to it
@@ -161,6 +174,15 @@ private:
 
     // places the given child in front of all other children of this node
     void bring_child_to_front(UINode* child);
+
+    // resolves this nodes bounds and recursively resolves all child bounds 
+    // if anything changes, should set the respective flags
+    // returns true if anything changed
+    bool resolve_bounds();
+    
+    // dispatches events related to the bounds changing and recursively calls into children
+    // unsets the respective flags
+    void dispatch_bound_events();
 
     // owning UIContext
     UIContext& context;
@@ -175,7 +197,21 @@ private:
 
     // rectangular bounds of this node
     // rectangle is relative to the parent node
-    UIRect bounds;
+    Bounds bounds;
+
+    // these get set when the position or size changed when resolving bounds
+    // these are unset after we call the respective on_* handlers
+    bool repositioned = false;
+    bool resized = false;
+
+    // whether or not this UINode will clip render_content_impl
+    bool should_clip_content = false;
+
+    // whether or not this UINode will clip children
+    bool should_clip_children = false;
+
+    // whether or not this UINode will clip render_overlay_impl
+    bool should_clip_overlay = false;
 
     // whether or not this UINode has the mouse hovering over it
     // set on_mouse_enter(), unset on_mouse_leave()

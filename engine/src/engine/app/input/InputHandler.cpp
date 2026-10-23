@@ -8,6 +8,20 @@
 
 namespace engine::app {
 
+// helper to get GLFW modifiers
+// currently, this doesn't accurately report caps and num lock
+int get_glfw_mods(GLFWwindow* window) {
+    auto down = [&](int key) { 
+        return glfwGetKey(window, key) == GLFW_PRESS; 
+    };
+    int mods = 0;
+    if(down(GLFW_KEY_LEFT_SHIFT)   || down(GLFW_KEY_RIGHT_SHIFT))   mods |= GLFW_MOD_SHIFT;
+    if(down(GLFW_KEY_LEFT_CONTROL) || down(GLFW_KEY_RIGHT_CONTROL)) mods |= GLFW_MOD_CONTROL;
+    if(down(GLFW_KEY_LEFT_ALT)     || down(GLFW_KEY_RIGHT_ALT))     mods |= GLFW_MOD_ALT;
+    if(down(GLFW_KEY_LEFT_SUPER)   || down(GLFW_KEY_RIGHT_SUPER))   mods |= GLFW_MOD_SUPER;
+    return mods;
+};
+
 InputHandler::~InputHandler() {
     // remove GLFW input polling task
     // TODO
@@ -69,9 +83,7 @@ void InputHandler::add_window(Window& window) {
                 Window* window = context->window;
                 if(handler->scroll_callbacks.contains(window)) {
                     auto func = handler->scroll_callbacks.at(window);
-                    ScrollEvent ev;
-                    ev.xoff = xoffset;
-                    ev.yoff = yoffset;
+                    ScrollEvent ev = ScrollEvent::translate_glfw_scroll_event(xoffset, yoffset, get_glfw_mods(glfw_window));
                     func(ev);
                 }
             }

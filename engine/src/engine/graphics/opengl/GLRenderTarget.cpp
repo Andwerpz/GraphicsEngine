@@ -53,6 +53,7 @@ void GLTextureRenderTarget::clear(ClearFlags flags) {
     ;
 
     device.gl_bind_framebuffer(gl_framebuffer);
+    glDisable(GL_SCISSOR_TEST);     // scissor affects clear region
     glClear(gl_clear_flags);
 }
 
