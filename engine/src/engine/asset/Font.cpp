@@ -116,7 +116,10 @@ std::vector<std::vector<Pixel>> decode_bitmap(const FT_Bitmap& bitmap) {
     return pixels;
 }
 
-Font Font::load_from_memory(std::span<const std::byte> data, float font_size) {
+Font Font::load(std::string_view addr, float font_size) {
+    // load bytes
+    std::vector<std::byte> data = load_asset(addr);
+
     // initialize FreeType
     FT_Library library;
     if(FT_Init_FreeType(&library)) {
@@ -129,7 +132,7 @@ Font Font::load_from_memory(std::span<const std::byte> data, float font_size) {
     err = FT_New_Memory_Face(
         library,
         reinterpret_cast<const FT_Byte*>(data.data()),
-        static_cast<FT_Long>(data.size_bytes()),
+        static_cast<FT_Long>(data.size()),
         0,          // face index (non-zero only for collections like .ttc)
         &face
     );
@@ -237,7 +240,7 @@ Font Font::load_from_memory(std::span<const std::byte> data, float font_size) {
                         uint32_t y = glyph.atlas_y + yoff;
                         atlas->set_pixel(
                             x, y,
-                            px.r, px.g, px.b, px.a
+                            glm::vec4 {px.r, px.g, px.b, px.a}
                         );
                     }
                 }
@@ -271,6 +274,7 @@ Font Font::load_from_memory(std::span<const std::byte> data, float font_size) {
     build_atlas(atlas_width, atlas_height, &atlas);
 
     return Font(
+        addr,
         std::move(atlas),
         std::move(glyphs),
         ascent,
@@ -279,18 +283,8 @@ Font Font::load_from_memory(std::span<const std::byte> data, float font_size) {
     );
 }
 
-Font Font::load(std::string_view addr, float font_size) {
-    // load bytes
-    std::vector<std::byte> data = load_asset(addr);
-
-    // load font
-    return load_from_memory(
-        std::span<const std::byte>(data.data(), data.size()),
-        font_size
-    );
-}
-
 Font::Font(Font&& other) :
+    Asset(std::move(other)),
     atlas(std::move(other.atlas)),
     glyphs(std::move(other.glyphs))
 {
@@ -300,12 +294,14 @@ Font::Font(Font&& other) :
 }
 
 Font::Font(
+    std::string_view addr,
     Image&& atlas,
     std::map<uint64_t, Glyph>&& glyphs,
     float ascent,
     float descent,
     float line_height
 ) : 
+    Asset(addr),
     atlas(std::move(atlas)),
     glyphs(std::move(glyphs)),
     ascent(ascent),

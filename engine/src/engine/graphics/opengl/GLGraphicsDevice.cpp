@@ -1273,21 +1273,4 @@ void GLGraphicsDevice::present(Window& window) {
     gl_window.swap_buffers();
 }
 
-uint32_t GLGraphicsDevice::get_vertex_format_location_count(VertexFormat format) {
-    switch(format) {
-        case VertexFormat::Float32x1:
-            return 1;
-        case VertexFormat::Float32x2:
-            return 1;
-        case VertexFormat::Float32x3:
-            return 1;
-        case VertexFormat::Float32x4:
-            return 1;
-        case VertexFormat::Float32x4x4:
-            return 4;
-        default:
-            assert(false);
-    }
-}
-
 }

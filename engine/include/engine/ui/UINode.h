@@ -6,10 +6,10 @@
 
 #include <glm/glm.hpp>
 
+#include <engine/math/Rect.h>
 #include <engine/app/input/InputHandler.h>
 #include <engine/app/input/KeyEvent.h>
 #include <engine/app/input/MouseButtonEvent.h>
-#include <engine/ui/Bounds.h>
 #include <engine/ui/UIRenderer.h>
 
 // TODO make these UI primitives
@@ -58,14 +58,13 @@ public:
     void set_margin_max(glm::vec2 margin_max);
 
 protected:
-    using CursorPositionEvent = engine::app::CursorPositionEvent;
+    using Rect2 = engine::math::Rect2;
 
+    using CursorPositionEvent = engine::app::CursorPositionEvent;
     using MouseButtonEvent = engine::app::MouseButtonEvent;
     using MouseButton = engine::app::MouseButton;
     using MouseButtonAction = engine::app::MouseButtonAction;
-    
     using ScrollEvent = engine::app::ScrollEvent;
-
     using KeyEvent = engine::app::KeyEvent;
     using Key = engine::app::Key;
     using KeyAction = engine::app::KeyAction;
@@ -197,7 +196,7 @@ private:
 
     // rectangular bounds of this node
     // rectangle is relative to the parent node
-    Bounds bounds;
+    Rect2 bounds;
 
     // these get set when the position or size changed when resolving bounds
     // these are unset after we call the respective on_* handlers

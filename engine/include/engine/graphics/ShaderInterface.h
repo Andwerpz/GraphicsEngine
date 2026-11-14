@@ -10,13 +10,20 @@ namespace engine::graphics {
 // a ShaderInterface describes the resources the Shader requires, and what slots they are required on 
 
 struct ShaderInterfaceVariable {
-    ShaderInterfaceVariable(ShaderType type, std::string name) : 
-        type(type), name(name) {}
+    ShaderInterfaceVariable(ShaderType type, std::string name, uint32_t nr_locations) : 
+        type(type), name(name), nr_locations(nr_locations) {}
     ShaderInterfaceVariable(const ShaderInterfaceVariable& other) :
-        type(other.type), name(other.name) {}
+        type(other.type), name(other.name), nr_locations(other.nr_locations) {}
 
     ShaderType type;
     std::string name;
+
+    // the number of locations this interface variable takes up
+    // when you see something like "layout (location = 0) in mat4 frag_pos;"
+    //   this interface variable starts at location 0 and takes up 4 locations
+    // the number of locations an interface variable takes up is standard
+    //   and should not change depending on the specific driver you are compiling for
+    uint32_t nr_locations;
 };
 
 // {set, binding}

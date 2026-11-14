@@ -31,36 +31,6 @@ public:
     Texture(Texture&& other);
     virtual ~Texture() = 0;
 
-protected:
-    Texture(
-        TextureDimension type, 
-        TextureFormat format, 
-        uint32_t width, 
-        uint32_t height, 
-        uint32_t depth, 
-        uint32_t mip_levels
-    );
-
-    inline static std::atomic<uint64_t> next_texture_id{1};
-
-    // unique ID assigned to every texture, texture_id = 0 is invalid
-    uint64_t texture_id;
-
-    // what sort of texture is this
-    TextureDimension type;
-
-    // specifies how the texture is stored in GPU memory
-    TextureFormat format;
-
-    // (x, y, z) texture dimensions
-    uint32_t width;
-    uint32_t height;
-    uint32_t depth;
-
-    // number of mipmap levels 
-    uint32_t mip_levels;
-
-public:
     uint64_t get_texture_id() const {
         return texture_id;
     }
@@ -120,7 +90,7 @@ public:
     // this texture must be 2D or a Cubemap
     // the dimensions of the layer must match the image dimensions
     void upload_image(
-        engine::asset::Image& image,
+        const engine::asset::Image& image,
         uint32_t mip_level = 0,
         uint32_t cube_face = 0
     );
@@ -128,6 +98,35 @@ public:
     // generates mipmaps using mip level 0 as the base
     // replaces all other mip layers
     virtual void generate_mipmaps() = 0;
+
+protected:
+    Texture(
+        TextureDimension type, 
+        TextureFormat format, 
+        uint32_t width, 
+        uint32_t height, 
+        uint32_t depth, 
+        uint32_t mip_levels
+    );
+
+    inline static std::atomic<uint64_t> next_texture_id{1};
+
+    // unique ID assigned to every texture, texture_id = 0 is invalid
+    uint64_t texture_id;
+
+    // what sort of texture is this
+    TextureDimension type;
+
+    // specifies how the texture is stored in GPU memory
+    TextureFormat format;
+
+    // (x, y, z) texture dimensions
+    uint32_t width;
+    uint32_t height;
+    uint32_t depth;
+
+    // number of mipmap levels 
+    uint32_t mip_levels;
 };
 
 }

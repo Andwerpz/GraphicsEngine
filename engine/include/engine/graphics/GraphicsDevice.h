@@ -4,6 +4,8 @@
 #include <filesystem>
 namespace fs = std::filesystem;
 
+#include <engine/util/macro.h>
+
 #include "Buffer.h"
 #include "Texture.h"
 #include "Sampler.h"
@@ -12,10 +14,6 @@ namespace fs = std::filesystem;
 #include "Program.h"
 #include "ProgramInvocation.h"
 #include "Window.h"
-
-// TODO allow a graphics device to handle multiple windows 
-//   in GLFW, a graphics device handling multiple windows will have one context per window 
-//   to select which window you want to render to, you just do glfwMakeContextCurrent(glfw_window);
 
 namespace engine::graphics {
 
@@ -41,10 +39,7 @@ public:
     GraphicsDevice() = default;
 
     // make GraphicsDevice non-moveable to let it have a stable address once allocated
-    GraphicsDevice(const GraphicsDevice&) = delete;
-    GraphicsDevice(GraphicsDevice&&) = delete;
-    GraphicsDevice& operator=(const GraphicsDevice&) = delete;
-    GraphicsDevice& operator=(GraphicsDevice&&) = delete;
+    NON_COPYABLE_NON_MOVABLE(GraphicsDevice);
 
     // -- RESOURCES --
     virtual std::unique_ptr<Buffer> create_buffer(
@@ -99,6 +94,16 @@ public:
     virtual std::unique_ptr<ComputeProgram> create_compute_program(
         Shader& compute
     ) = 0;
+    
+    // TODO
+    // // create various types of program invocations using combinations of shaders
+    // // it just wraps the factory method to create the corresponding program
+    // //   and makes the invocation own the program
+    // std::unique_ptr<RenderingProgramInvocation> create_rendering_program_invocation(
+    //     Shader& vertex, 
+    //     Shader& fragment,
+    //     PrimitiveTopology primitive_topology
+    // );
 
     // creates a new window managed by this graphics device
     virtual std::unique_ptr<Window> create_window(
@@ -110,11 +115,6 @@ public:
     // -- ACTIONS --
     // make whatever was rendered since the last present() visible
     virtual void present(Window& window) = 0;
-
-    // -- HELPERS --
-    // should return the number of consecutive locations required by some vertex format
-    // assumes that a vertex attribute takes up some consecutive amount of locations
-    virtual uint32_t get_vertex_format_location_count(VertexFormat format) = 0;
 };
 
 }

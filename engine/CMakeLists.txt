@@ -66,8 +66,7 @@ find_package(OpenGL REQUIRED)
 find_library(SHADERC_LIBRARY NAMES shaderc_combined shaderc REQUIRED)
 
 # Engine
-file(GLOB_RECURSE ENGINE_SOURCES
-    CONFIGURE_DEPENDS
+file(GLOB_RECURSE ENGINE_SOURCES CONFIGURE_DEPENDS
     src/*.cpp
 )
 add_library(engine STATIC 
@@ -83,6 +82,7 @@ target_include_directories(engine
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/third_party/spirv_reflect
         ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb
+        ${CMAKE_CURRENT_SOURCE_DIR}/third_party/json
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include
         ${CMAKE_CURRENT_SOURCE_DIR}/third_party/glad/include

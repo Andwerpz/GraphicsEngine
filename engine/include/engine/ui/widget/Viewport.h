@@ -53,7 +53,7 @@ public:
 
 private:
     void render_content(UIRenderer& renderer) override {
-        renderer.draw_textured_rect({{0, 0}, get_dim()}, *render_texture);
+        renderer.draw_rect({{0, 0}, get_dim()}, *render_texture);
     }
 
     GraphicsDevice& device;

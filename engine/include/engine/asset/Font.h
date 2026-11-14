@@ -33,7 +33,6 @@ public:
     Font(Font&& other);
     ~Font() = default;
 
-    static Font load_from_memory(std::span<const std::byte> data, float font_size);
     static Font load(std::string_view addr, float font_size);
 
     Image& get_atlas() {
@@ -59,6 +58,7 @@ public:
 
 private:
     Font(
+        std::string_view addr,
         Image&& atlas,
         std::map<uint64_t, Glyph>&& glyphs,
         float ascent,

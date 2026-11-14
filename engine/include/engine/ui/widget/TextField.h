@@ -80,7 +80,7 @@ private:
             float cursor_yoff = TEXT_MARGIN;
             float cursor_width = 2.0f;
             float cursor_height = get_dim().y - TEXT_MARGIN * 2;
-            renderer.draw_rect(Bounds {{cursor_xoff, cursor_yoff}, {cursor_width, cursor_height}}, glm::vec4(1));
+            renderer.draw_rect(Rect2 {{cursor_xoff, cursor_yoff}, {cursor_width, cursor_height}}, glm::vec4(1));
         }
     }
 

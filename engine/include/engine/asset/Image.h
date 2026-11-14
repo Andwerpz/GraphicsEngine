@@ -2,6 +2,7 @@
 #include <vector>
 #include <cstdint>
 #include <span>
+#include <glm/glm.hpp>
 
 #include <filesystem>
 namespace fs = std::filesystem;
@@ -32,37 +33,39 @@ public:
     Image(Image&& other);
     ~Image() = default;
 
-    static Image load_from_memory(std::span<const std::byte> bytes);
     static Image load(std::string_view addr);
 
     void export_as_png(const fs::path& path);
 
-    uint32_t get_width() {
+    uint32_t get_width() const {
         return width;
     }
 
-    uint32_t get_height() {
+    uint32_t get_height() const {
         return height;
     }
 
-    ImageFormat get_format() {
+    ImageFormat get_format() const {
         return format;
     }
 
-    ImageAlphaMode get_alpha_mode() {
+    ImageAlphaMode get_alpha_mode() const {
         return alpha_mode;
     }
 
-    const std::byte* get_data() {
+    const std::byte* get_data() const {
         return data.data();
     }
 
-    uint64_t get_data_size() {
+    uint64_t get_data_size() const {
         return data.size();
     }
 
     // returns the pixel size in bytes based off of the image format
-    uint64_t get_pixel_size();
+    uint64_t get_pixel_size() const;
+
+    // gets the given pixel as-is
+    glm::vec4 get_pixel(uint32_t x, uint32_t y) const;
 
 private:
     // creates an empty image with the given dimensions
@@ -75,6 +78,7 @@ private:
 
     // creates an image with pre-populated data
     Image(
+        std::string_view addr,
         uint32_t width, 
         uint32_t height,
         ImageFormat format,
@@ -84,10 +88,7 @@ private:
 
     // sets the given pixel to the provided color values
     // does not convert pixel to the image alpha mode, stores the pixel as-is
-    void set_pixel(
-        uint32_t x, uint32_t y,
-        float r, float g, float b, float a
-    );
+    void set_pixel(uint32_t x, uint32_t y, glm::vec4 color);
 
     // image dimensions
     uint32_t width;

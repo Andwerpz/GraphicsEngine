@@ -66,7 +66,7 @@ uint64_t Texture::get_size(uint32_t mip_level) const {
 }
 
 void Texture::upload_image(
-    engine::asset::Image& image,
+    const engine::asset::Image& image,
     uint32_t mip_level,
     uint32_t cube_face
 ) {

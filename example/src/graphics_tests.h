@@ -30,7 +30,6 @@ inline void test_uniform() {
 
     auto invocation = program->create_invocation(); 
     invocation->bind_render_target(*window_render_target);
-    invocation->validate();
 
     // auto token = invocation->get_uniform<float>("bar.foo2.arr[1][67]");
     // auto token = invocation->get_uniform<float>("bar.asdf");
@@ -103,7 +102,6 @@ inline void test_cube() {
         engine::graphics::VertexInputRate::Vertex,
         engine::graphics::VertexFormat::Float32x3
     );
-    invocation->validate();
 
     auto projection_token = invocation->get_uniform<glm::mat4>("camera.projection");
     auto view_token = invocation->get_uniform<glm::mat4>("camera.view");
@@ -226,8 +224,6 @@ inline void test_texture() {
         *texture,
         *sampler
     );
-
-    invocation->validate();
 
     auto projection_token = invocation->get_uniform<glm::mat4>("camera.projection");
     auto view_token = invocation->get_uniform<glm::mat4>("camera.view");
@@ -379,8 +375,6 @@ inline void test_skybox() {
             *skybox,
             *sampler
         );
-
-        skybox_invocation->validate();
     }
 
     auto cube_invocation = cube_program->create_invocation();
@@ -417,8 +411,6 @@ inline void test_skybox() {
             *texture,
             *sampler
         );
-
-        cube_invocation->validate();
     }
 
     auto skybox_projection = skybox_invocation->get_uniform<glm::mat4>("camera.projection");
@@ -526,7 +518,6 @@ inline void test_render_target() {
     auto cube_render_target = device.create_render_target(cube_texture->get_width(), cube_texture->get_height());
     cube_render_target->bind_texture(0, *cube_texture);
     cube_render_target->bind_depth_buffer();
-    cube_render_target->validate();
 
     auto cube_invocation = cube_program->create_invocation();
     {
@@ -547,7 +538,6 @@ inline void test_render_target() {
             engine::graphics::VertexInputRate::Vertex,
             engine::graphics::VertexFormat::Float32x3
         );
-        cube_invocation->validate();
     }
     
     auto invocation = program->create_invocation(); 
@@ -577,7 +567,6 @@ inline void test_render_target() {
             engine::graphics::VertexInputRate::Vertex,
             engine::graphics::VertexFormat::Float32x2
         );
-        invocation->validate();
     }
     invocation->bind_sampled_texture(
         {0, 1},
@@ -730,8 +719,6 @@ inline void test_separate_invocations() {
             VertexInputRate::Instance,
             VertexFormat::Float32x4
         );
-
-        invocation->validate();
     };
 
     bind_rect_instance(left_invocation, left_buffer);
@@ -803,7 +790,6 @@ inline void test_same_invocation_twice() {
         4, *instance_buffer, 4 * sizeof(glm::vec4), sizeof(RectInstance),
         VertexInputRate::Instance, VertexFormat::Float32x4
     );
-    invocation->validate();
 
     const glm::mat4 projection = glm::ortho(
         0.0f, static_cast<float>(window->get_width()),
@@ -905,7 +891,6 @@ inline void test_sampler_array() {
         *texture,
         *sampler
     );
-    invocation->validate();
 
     while(true) {
         invocation->draw(1);

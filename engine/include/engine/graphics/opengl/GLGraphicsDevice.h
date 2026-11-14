@@ -240,7 +240,6 @@ public:
     ) override;
 
     void present(Window& window) override;
-    uint32_t get_vertex_format_location_count(VertexFormat format) override;
 
 private:
     // hidden window created to initialize OpenGL graphics device

@@ -22,7 +22,9 @@ static bool format_has_alpha(ImageFormat format) {
     }
 }
 
-Image::Image(Image&& other) {
+Image::Image(Image&& other) :
+    Asset(std::move(other))
+{
     width = other.width;
     height = other.height;
     format = other.format;
@@ -38,7 +40,7 @@ Image::Image(
     uint32_t _height,
     ImageFormat _format,
     ImageAlphaMode _alpha_mode
-) {
+) : Asset() {
     if(format_has_alpha(_format) && _alpha_mode == ImageAlphaMode::None) {
         engine::util::throw_error("Image format has alpha channel, alpha mode cannot be None");
     }
@@ -56,12 +58,13 @@ Image::Image(
 }
 
 Image::Image(
+    std::string_view addr,
     uint32_t _width,
     uint32_t _height,
     ImageFormat _format,
     ImageAlphaMode _alpha_mode,
     std::vector<std::byte>&& _data
-) {
+) : Asset(addr) {
     if(format_has_alpha(_format) && _alpha_mode == ImageAlphaMode::None) {
         engine::util::throw_error("Image format has alpha channel, alpha mode cannot be None");
     }
@@ -76,8 +79,9 @@ Image::Image(
     data = std::move(_data);
 }
 
-Image Image::load_from_memory(std::span<const std::byte> bytes) {
-    if(bytes.size_bytes() > static_cast<size_t>(std::numeric_limits<int>::max())) {
+Image Image::load(std::string_view addr) {
+    std::vector<std::byte> bytes = load_asset(addr);
+    if(bytes.size() > static_cast<size_t>(std::numeric_limits<int>::max())) {
         engine::util::throw_error("Image data too large");
     }
 
@@ -86,7 +90,7 @@ Image Image::load_from_memory(std::span<const std::byte> bytes) {
     int width, height, channels;
     unsigned char* pixels = stbi_load_from_memory(
         reinterpret_cast<const stbi_uc*>(bytes.data()),
-        static_cast<int>(bytes.size_bytes()),
+        static_cast<int>(bytes.size()),
         &width, &height, &channels,
         4   // force RGBA
     );
@@ -101,15 +105,12 @@ Image Image::load_from_memory(std::span<const std::byte> bytes) {
     stbi_image_free(pixels);
 
     return Image(
+        addr,
         width, height, 
         ImageFormat::RGBA8, 
         ImageAlphaMode::Straight, 
         std::move(data)
     );
-}
-
-Image Image::load(std::string_view addr) {
-    return load_from_memory(load_asset(addr));
 }
 
 void Image::export_as_png(const fs::path& path) {
@@ -153,7 +154,7 @@ void Image::export_as_png(const fs::path& path) {
     }
 }
 
-uint64_t Image::get_pixel_size() {
+uint64_t Image::get_pixel_size() const {
     switch(format) {
         case ImageFormat::RGBA8:
             return 4;
@@ -162,12 +163,33 @@ uint64_t Image::get_pixel_size() {
     }
 }
 
-void Image::set_pixel(
-    uint32_t x, uint32_t y,
-    float r, float g, float b, float a
-) {
+glm::vec4 Image::get_pixel(uint32_t x, uint32_t y) const {
     if(x >= width || y >= height) {
-        engine::util::throw_error("coordinates out of range");
+        engine::util::throw_error("pixel coordinates out of range");
+    }
+
+    uint64_t pixel_size = get_pixel_size();
+    switch(format) {
+        case ImageFormat::RGBA8: {
+            uint64_t off = pixel_size * (width * y + x);
+            auto to_float = [](std::byte b) -> float {
+                return (float) b / 255.0f;
+            };
+            return {
+                to_float(data[off + 0]),
+                to_float(data[off + 1]),
+                to_float(data[off + 2]),
+                to_float(data[off + 3])
+            };
+        }
+        default:
+            assert(false);
+    }
+}
+
+void Image::set_pixel(uint32_t x, uint32_t y, glm::vec4 color) {
+    if(x >= width || y >= height) {
+        engine::util::throw_error("pixel coordinates out of range");
     }
 
     uint64_t pixel_size = get_pixel_size();
@@ -178,10 +200,10 @@ void Image::set_pixel(
                 c = std::max(0.0f, std::min(1.0f, c));
                 return std::byte(static_cast<uint8_t>(c * 255.0f + 0.5f));
             };
-            data[off + 0] = to_byte(r);
-            data[off + 1] = to_byte(g);
-            data[off + 2] = to_byte(b);
-            data[off + 3] = to_byte(a);
+            data[off + 0] = to_byte(color.r);
+            data[off + 1] = to_byte(color.g);
+            data[off + 2] = to_byte(color.b);
+            data[off + 3] = to_byte(color.a);
             break;
         }
         default:

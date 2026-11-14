@@ -1,0 +1,81 @@
+{
+    "name": "dungeon",
+    "tile_size": 16,
+
+    "channels": [
+        "albedo",
+        "normal"
+    ],
+
+    "atlases": [
+        {
+            "name": "dev",
+            "channels": {
+                "albedo": "res/tileset/dev/albedo.png",
+                "normal": "res/tileset/dev/normal.png"
+            }
+        }
+    ],
+
+    "tiles": [
+        // DEV
+        // floor
+        { "name": "dev.floor.normal",   "atlas": "dev", "pos": { "x": 0,    "y": 0  } },
+        { "name": "dev.floor.mini",     "atlas": "dev", "pos": { "x": 16,   "y": 0  } },
+        { "name": "dev.floor.large_tl", "atlas": "dev", "pos": { "x": 0,    "y": 16 } },
+        { "name": "dev.floor.large_tr", "atlas": "dev", "pos": { "x": 16,   "y": 16 } },
+        { "name": "dev.floor.large_bl", "atlas": "dev", "pos": { "x": 0,    "y": 32 } },
+        { "name": "dev.floor.large_br", "atlas": "dev", "pos": { "x": 16,   "y": 32 } },
+
+        // wall
+        { "name": "dev.wall.normal",    "atlas": "dev", "pos": { "x": 32,   "y": 0  } },
+
+        // ceiling trim
+        { "name": "dev.ceiling_trim.1000",  "atlas": "dev", "pos": { "x": 48,   "y": 0  } },
+        { "name": "dev.ceiling_trim.0100",  "atlas": "dev", "pos": { "x": 64,   "y": 0  } },
+        { "name": "dev.ceiling_trim.0010",  "atlas": "dev", "pos": { "x": 80,   "y": 0  } },
+        { "name": "dev.ceiling_trim.0001",  "atlas": "dev", "pos": { "x": 96,   "y": 0  } },
+        { "name": "dev.ceiling_trim.1100",  "atlas": "dev", "pos": { "x": 48,   "y": 16 } },
+        { "name": "dev.ceiling_trim.0110",  "atlas": "dev", "pos": { "x": 64,   "y": 16 } },
+        { "name": "dev.ceiling_trim.0011",  "atlas": "dev", "pos": { "x": 80,   "y": 16 } },
+        { "name": "dev.ceiling_trim.1001",  "atlas": "dev", "pos": { "x": 96,   "y": 16 } },
+        { "name": "dev.ceiling_trim.1110",  "atlas": "dev", "pos": { "x": 48,   "y": 32 } },
+        { "name": "dev.ceiling_trim.0111",  "atlas": "dev", "pos": { "x": 64,   "y": 32 } },
+        { "name": "dev.ceiling_trim.1011",  "atlas": "dev", "pos": { "x": 80,   "y": 32 } },
+        { "name": "dev.ceiling_trim.1101",  "atlas": "dev", "pos": { "x": 96,   "y": 32 } },
+        { "name": "dev.ceiling_trim.1111",  "atlas": "dev", "pos": { "x": 112,  "y": 0  } },
+        { "name": "dev.ceiling_trim.1010",  "atlas": "dev", "pos": { "x": 112,  "y": 16 } },
+        { "name": "dev.ceiling_trim.0101",  "atlas": "dev", "pos": { "x": 112,  "y": 32 } }
+    ],
+
+    "placers": [
+        // DEV
+        {
+            "name": "dev.floor",
+            "type": "random",
+            "tiles": [
+                { "tile": "dev.floor.normal",   "weight": 2.0 },
+                { "tile": "dev.floor.mini",     "weight": 1.0 }
+            ]
+        },
+        {
+            "name": "dev.big_tile",
+            "type": "stamp",
+            "tiles": [
+                { "tile": "dev.floor.large_tl", "offset": { "x": 0, "y": 0 } },
+                { "tile": "dev.floor.large_tr", "offset": { "x": 1, "y": 0 } },
+                { "tile": "dev.floor.large_bl", "offset": { "x": 0, "y": 1 } },
+                { "tile": "dev.floor.large_br", "offset": { "x": 1, "y": 1 } }
+            ]
+        },
+        {
+            "name": "dev.wall",
+            "type": "random",
+            "tiles": [
+                { "tile": "dev.wall.normal", "weight": 1.0 }
+            ]
+        }
+
+        // TODO dev ceiling trim
+    ]
+}

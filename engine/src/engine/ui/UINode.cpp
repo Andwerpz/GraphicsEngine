@@ -214,7 +214,7 @@ bool UINode::resolve_bounds() {
     if(parent.has_value()) {
         // non-root node
         glm::vec2 parent_dim = parent.value()->get_dim();
-        Bounds next;
+        Rect2 next;
         for(int a = 0; a < 2; a++) {
             // resolve anchor + pivot
             if(anchor_min[a] != anchor_max[a]) {
@@ -238,7 +238,7 @@ bool UINode::resolve_bounds() {
     else {
         // root node
         // just use fixed dim and offset
-        bounds = Bounds {offset, fixed_dim};
+        bounds = Rect2 {offset, fixed_dim};
     }
     repositioned = bounds.pos != old_pos;
     resized = bounds.dim != old_dim;

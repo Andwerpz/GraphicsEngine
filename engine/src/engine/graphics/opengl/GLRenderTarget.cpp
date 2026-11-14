@@ -57,6 +57,10 @@ void GLTextureRenderTarget::clear(ClearFlags flags) {
     glClear(gl_clear_flags);
 }
 
+std::unique_ptr<RenderTargetView> GLTextureRenderTarget::create_view(Bounds bounds) {
+    return std::unique_ptr<RenderTargetView>(new GLRenderTargetView(*this, device, bounds));
+}
+
 
 GLWindowRenderTarget::GLWindowRenderTarget(
     GLGraphicsDevice& device,
@@ -91,7 +95,56 @@ void GLWindowRenderTarget::clear(ClearFlags flags) {
     ;
 
     device.gl_bind_framebuffer(gl_framebuffer);
+    glDisable(GL_SCISSOR_TEST);     // scissor affects clear region
     glClear(gl_clear_flags);
+}
+
+std::unique_ptr<RenderTargetView> GLWindowRenderTarget::create_view(Bounds bounds) {
+    return std::unique_ptr<RenderTargetView>(new GLRenderTargetView(*this, device, bounds));
+}
+
+
+GLRenderTargetView::GLRenderTargetView(
+    RenderTarget& target,
+    GLGraphicsDevice& device,
+    Bounds bounds
+) : RenderTargetView(target, bounds),
+    device(device)
+{
+    // do nothing
+}
+
+void GLRenderTargetView::clear(ClearFlags flags) {
+    if(flags == ClearFlags::None) return;
+    GLenum gl_clear_flags = 
+        ((flags & ClearFlags::Color) != ClearFlags::None ? GL_COLOR_BUFFER_BIT : 0) |
+        ((flags & ClearFlags::Depth) != ClearFlags::None ? GL_DEPTH_BUFFER_BIT : 0)
+    ;
+    if(bounds.is_empty()) return;
+
+    GLFramebuffer* gl_framebuffer = nullptr;
+    if(auto target = dynamic_cast<GLTextureRenderTarget*>(&root_target)) {
+        gl_framebuffer = &target->gl_framebuffer;
+    }
+    else if(auto target = dynamic_cast<GLWindowRenderTarget*>(&root_target)) {
+        gl_framebuffer = &target->gl_framebuffer;
+    }
+    else assert(false);
+    assert(gl_framebuffer != nullptr);
+
+    // clear with scissor enabled
+    device.gl_bind_framebuffer(*gl_framebuffer);
+    device.gl_set_scissor(
+        gl_framebuffer->get_context(), 
+        bounds.pos.x, bounds.pos.y,
+        bounds.dim.x, bounds.dim.y
+    );
+    glEnable(GL_SCISSOR_TEST);
+    glClear(gl_clear_flags);
+}
+
+std::unique_ptr<RenderTargetView> GLRenderTargetView::create_view(Bounds bounds) {
+    return std::unique_ptr<RenderTargetView>(new GLRenderTargetView(*this, device, bounds));
 }
 
 }

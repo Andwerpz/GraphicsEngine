@@ -274,7 +274,6 @@ inline void test_ui_context() {
 
     auto invocation = program->create_invocation(); 
     invocation->bind_render_target(viewport.get_render_target());
-    invocation->validate();
     invocation->bind_sampled_texture(
         {0, 0}, *texture, *sampler
     );
@@ -393,7 +392,6 @@ inline void test_ui_context() {
     //         *sampler
     //     );
 
-    //     skybox_invocation->validate();
     // }
 
     // auto cube_invocation = cube_program->create_invocation();
@@ -431,7 +429,6 @@ inline void test_ui_context() {
     //         *sampler
     //     );
 
-    //     cube_invocation->validate();
     // }
 
     // auto skybox_projection = skybox_invocation->get_uniform<glm::mat4>("camera.projection");

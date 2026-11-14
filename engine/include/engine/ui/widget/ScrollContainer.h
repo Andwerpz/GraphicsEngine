@@ -36,7 +36,6 @@ public:
             handle[i]->set_on_drag_begin(
                 [this, axis = i]() -> void {
                     if(!contents.get_enable_offset()[axis]) return;
-                    std::cout << "drag start : " << axis << std::endl;
                     drag_handle_offset[axis] = calc_handle_offset(
                         contents.get_content_dim()[axis],
                         get_dim()[axis],
@@ -46,7 +45,6 @@ public:
             );
             handle[i]->set_on_move(
                 [this, axis = i](glm::vec2 delta) -> void {
-                    std::cout << "drag move : " << axis << std::endl;
                     float cur_handle_off = drag_handle_offset[axis] + delta[axis];
                     float offset = calc_viewport_offset(
                         contents.get_content_dim()[axis],
@@ -122,8 +120,6 @@ private:
             if(should_disappear) {
                 // make them have dim {0, 0}
                 handle[i]->set_fixed_dim(glm::vec2(0));
-                std::cout << "DISAPPEAR : " << i << std::endl;
-                std::cout << "DIM : " << content_dim << " " << viewport_dim << std::endl;
             }
             else {
                 // compute handle length and offset

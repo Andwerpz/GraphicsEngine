@@ -1,4 +1,6 @@
 #pragma once
+#include <optional>
+#include <memory>
 
 #include "../ProgramInvocation.h"
 
@@ -33,11 +35,10 @@ private:
 	// underlying program 
 	GLRenderingProgram& gl_program;
 
-    // vertex array gets built when this invocation gets validated
-    // when drawing, this vertex array gets bound to supply vertex information to the program
-    std::optional<GLVertexArray> gl_vertex_array;
-
-    void validate_impl() override;
+    // vertex array owned by this invocation
+    // the vertex array should be in the same OpenGL context as the supplied render target
+    // this is created lazily when drawing as the user can change the bound render target arbitrarily
+    std::unique_ptr<GLVertexArray> gl_vertex_array = nullptr;
 
 	void draw_impl(
         uint32_t nr_primitives, 

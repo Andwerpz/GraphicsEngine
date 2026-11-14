@@ -6,8 +6,8 @@ namespace engine::graphics {
 
 void RenderTarget::validate() {
     assert(!validated);
-    validated = true;
     validate_impl();
+    validated = true;
 }
 
 

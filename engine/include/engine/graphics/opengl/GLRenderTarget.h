@@ -19,6 +19,7 @@ class GLWindow;
 
 class GLTextureRenderTarget : public engine::graphics::TextureRenderTarget {
     friend class GLGraphicsDevice;
+    friend class GLRenderTargetView;
 
 public:
     GLTextureRenderTarget(GLTextureRenderTarget&&) = default;
@@ -53,10 +54,12 @@ private:
     void bind_depth_buffer_impl() override;
     void validate_impl() override;
     void clear(ClearFlags flags) override;
+    std::unique_ptr<RenderTargetView> create_view(Bounds bounds) override;
 };
 
 class GLWindowRenderTarget : public engine::graphics::WindowRenderTarget {
     friend class GLGraphicsDevice;
+    friend class GLRenderTargetView;
 
 public:
     GLWindowRenderTarget(GLWindowRenderTarget&&) = default;
@@ -94,6 +97,29 @@ private:
     bool has_output(uint32_t location) override;
     void validate_impl() override;
     void clear(ClearFlags flags) override;
+    std::unique_ptr<RenderTargetView> create_view(Bounds bounds) override;
+};
+
+class GLRenderTargetView : public engine::graphics::RenderTargetView {
+    friend class GLTextureRenderTarget;
+    friend class GLWindowRenderTarget;
+
+public:
+    GLRenderTargetView(GLRenderTargetView&&) = default;
+    ~GLRenderTargetView() = default;
+
+    void clear(ClearFlags flags) override;
+    std::unique_ptr<RenderTargetView> create_view(Bounds bounds) override;
+
+private:
+    GLRenderTargetView(
+        RenderTarget& target,
+        GLGraphicsDevice& device,
+        Bounds bounds
+    );
+
+    // underlying graphics device
+    GLGraphicsDevice& device;
 };
 
 }

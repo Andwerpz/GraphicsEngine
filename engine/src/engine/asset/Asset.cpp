@@ -5,19 +5,29 @@
 
 namespace engine::asset {
 
-Asset::Asset() {
+Asset::Asset() :
+    address(std::nullopt)
+{
+    asset_id = next_asset_id.fetch_add(1, std::memory_order_relaxed);
+}
+
+Asset::Asset(std::string_view addr) :
+    address(addr)
+{
     asset_id = next_asset_id.fetch_add(1, std::memory_order_relaxed);
 }
 
 Asset::~Asset() = default;
 
 Asset::Asset(Asset&& other) {
+    address = std::move(other.address);
     asset_id = other.asset_id;
     other.asset_id = 0;
 }
 
 Asset& Asset::operator=(Asset&& other) {
     if(this == &other) return *this;
+    address = std::move(other.address);
     asset_id = other.asset_id;
     other.asset_id = 0;
     return *this;

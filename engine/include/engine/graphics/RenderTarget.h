@@ -2,6 +2,10 @@
 #include <cstdint>
 #include <map>
 #include <functional>
+#include <memory>
+
+#include <engine/util/error.h>
+#include <engine/math/Rect.h>
 
 #include "Texture.h"
 #include "Window.h"
@@ -11,6 +15,7 @@ namespace engine::graphics {
 // represents some collection of 2D things that can be rendered to
 // a TextureRenderTarget represents a list of textures that can be rendered to simultaneously
 // a WindowRenderTarget represents rendering to a Window
+// a RenderTargetView represents a subregion of another render target
 
 class Window;
 
@@ -50,11 +55,21 @@ constexpr ClearFlags& operator^=(ClearFlags& lhs, ClearFlags rhs) {
     return lhs = lhs ^ rhs;
 }
 
+class RenderTargetView;
+
 class RenderTarget {
 public:
-    // get dimensions
+    using Bounds = engine::math::Rect<2, int>;
+
+    // dimensions and offset of the viewport
     virtual uint32_t get_width() = 0;
     virtual uint32_t get_height() = 0;
+    virtual int get_xoff() { return 0; }
+    virtual int get_yoff() { return 0; }
+
+    // returns the render target that actually owns the underlying pixels
+    // for normal render targets, this should just return itself
+    virtual RenderTarget& get_root() { return *this; }
 
     // returns true if this render target has a depth buffer 
     virtual bool has_depth_buffer() = 0;
@@ -70,9 +85,15 @@ public:
         return validated;
     }
 
-    // clears the configured attachments
+    // clears all of the configured attachments within their respective viewports
+    // specifically, RenderTargetView::clear() does not clear outside of its view
     // can only be done after validating
     virtual void clear(ClearFlags flags) = 0;
+
+    // creates a RenderTargetView that represents the subrectangle of this target indicated by bounds
+    // bounds can be empty, and it can fall outside of and/or be completely disjoint from this target
+    // the underlying RenderTarget has to outlive this created view
+    virtual std::unique_ptr<RenderTargetView> create_view(Bounds bounds) = 0;
 
 protected:
     virtual void validate_impl() = 0;
@@ -140,6 +161,63 @@ protected:
 
     // underlying window
     Window& window;
+};
+
+class RenderTargetView : public RenderTarget {
+public:
+    uint32_t get_width() override {
+        return bounds.dim.x < 0 ? 0 : bounds.dim.x;
+    }
+    uint32_t get_height() override {
+        return bounds.dim.y < 0 ? 0 : bounds.dim.y;
+    }
+    int get_xoff() override {
+        return bounds.pos.x;
+    }
+    int get_yoff() override {
+        return bounds.pos.y;
+    }
+    
+    RenderTarget& get_root() {
+        return root_target;
+    }
+
+    bool has_depth_buffer() override {
+        return root_target.has_depth_buffer();
+    }
+    bool has_output(uint32_t location) override {
+        return root_target.has_output(location);
+    }
+
+protected:
+    RenderTargetView(RenderTarget& target, Bounds _bounds) :
+        root_target(target.get_root()), bounds(_bounds)
+    {   
+        // make sure target is validated
+        if(!target.is_validated()) {
+            engine::util::throw_error("can only make view of validated render target");
+        }
+
+        // offset bounds from underlying target
+        bounds.pos.x += target.get_xoff();
+        bounds.pos.y += target.get_yoff();
+
+        // validate
+        validated = true;
+    }
+
+    void validate_impl() override {
+        engine::util::throw_error("RenderTargetView cannot be validated");
+    }
+
+    // root non-view render target
+    RenderTarget& root_target;
+
+    // rectangle of the root target that is exposed by this target
+    // these bounds should be relative to the root render target
+    // these bounds can go outside of the root render target
+    // bounds are immutable after construction
+    Bounds bounds;
 };
 
 }

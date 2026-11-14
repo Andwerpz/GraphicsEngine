@@ -95,9 +95,6 @@ template<typename T>
 UniformToken<T> ProgramInvocation::get_uniform(std::string_view _addr) {
     std::string addr(_addr);
 
-    // make sure we've validated
-    assert(validated);
-
     // parsing methods, these strip off the relevant parts and modify the original string
     auto get_struct_member_name = [](std::string& addr) -> std::string {
         // make sure addr isn't empty
@@ -361,15 +358,8 @@ void ProgramInvocation::set_uniform(UniformToken<glm::mat4> token, glm::mat4 val
     buffer.upload_data(&val, 4 * 4 * 4, token.offset);
 }
 
-void ProgramInvocation::validate() {
-    // make sure we haven't validated
-    assert(!validated);
-
-    validate_impl();
-    validated = true;
-}
-
 void ProgramInvocation::bind_resource(ShaderResourceLocation location, ResourceBinding resource) {
+    dirty_resources.insert(location);
     bound_resources[location] = resource;
 }
 
@@ -381,8 +371,10 @@ ProgramInvocation::ResourceBinding& ProgramInvocation::get_resource(ShaderResour
 }
 
 void ProgramInvocation::validate_resource_bindings() {
-    // for now, just make sure that the number of available resource binding slots 
-    // matches the amount of entries in bound_resources
+    // just make sure that the number of bound resources matches the number of resources in the interface
+    // when resources are bound, it should be verified that they are being bound against a slot
+    //   that exists in the interface, and that the slot will accept them, so just making sure
+    //   the amount of bound resources matches is sufficient.
     ShaderInterface& interface = program.get_interface();
     assert(bound_resources.size() <= interface.resources.size());
     if(bound_resources.size() != interface.resources.size()) {
@@ -395,7 +387,25 @@ RenderingProgramInvocation::RenderingProgramInvocation(
     GraphicsDevice& device,
     Program& program
 ) : ProgramInvocation(device, program) {
-    // do nothing
+    // derive vertex attribute layout from program interface
+    // vertex attributes should be input variables to the program
+    std::set<uint32_t> used_locations;
+    for(auto& [location, input_var] : program.get_interface().inputs) {
+        uint32_t nr_locations = input_var.nr_locations;
+        
+        // all locations claimed by this input variable should be unused
+        // I think the shader should fail to compile if not
+        for(uint32_t _loc = location; _loc < location + nr_locations; _loc++) {
+            assert(!used_locations.contains(_loc));
+            used_locations.insert(_loc);
+        }
+
+        // add as vertex attribute
+        attributes.emplace(location, VertexAttribute {
+            .location = location,
+            .nr_locations = nr_locations
+        });
+    }
 }
 
 void RenderingProgramInvocation::bind_vertex_attribute(
@@ -406,15 +416,9 @@ void RenderingProgramInvocation::bind_vertex_attribute(
     VertexInputRate rate,
     VertexFormat format
 ) {
-    // make sure we haven't validated
-    assert(!validated);
-
-    // make sure that this location hasn't been bound to yet
-    uint32_t location_count = device.get_vertex_format_location_count(format);
-    for(uint32_t i = 0; i < location_count; i++) {
-        if(occupied_locations.contains(location + i)) {
-            engine::util::throw_error("location already bound : " + std::to_string(location + i));
-        }
+    // make sure an attribute exists at location
+    if(!attributes.contains(location)) {
+        engine::util::throw_error("vertex attribute does not exist at location : " + std::to_string(location));
     }
 
     // make sure the buffer is a vertex buffer
@@ -423,30 +427,20 @@ void RenderingProgramInvocation::bind_vertex_attribute(
     }
 
     // add binding
-    attribute_bindings.insert({location, (VertexAttributeBinding) {
-        buffer,
-        offset,
-        stride,
-        rate,
-        format
-    }});
-    for(uint32_t i = 0; i < location_count; i++) {
-        occupied_locations.insert(location + i);
-    }
+    VertexAttribute& attr = attributes.at(location);
+    attr.buffer = &buffer;
+    attr.offset = offset;
+    attr.stride = stride;
+    attr.rate = rate;
+    attr.format = format;
+    bound_attributes.insert(location);
+    dirty_attributes.insert(location);
 }
 
 void RenderingProgramInvocation::bind_index_buffer(
     Buffer& buffer,
     IndexFormat format
 ) {
-    // make sure we haven't validated
-    assert(!validated);
-    
-    // make sure we haven't bound an index buffer already
-    if(index_buffer.has_value()) {
-        engine::util::throw_error("bind_index_buffer index buffer already bound");
-    }
-
     // make sure the buffer is an index buffer
     if(buffer.get_usage() != BufferUsage::Index) {
         engine::util::throw_error("bind_index_buffer buffer needs to be an index buffer");
@@ -454,22 +448,15 @@ void RenderingProgramInvocation::bind_index_buffer(
 
     // add binding
     index_buffer.emplace((IndexBufferBinding) {
-        buffer,
+        &buffer,
         format
     });
+    dirty_index_buffer = true;
 }
 
 void RenderingProgramInvocation::bind_render_target(
     RenderTarget& target
 ) {
-    // make sure we haven't validated
-    assert(!validated);
-
-    // make sure we haven't already bound a render target
-    if(render_target.has_value()) {
-        engine::util::throw_error("render target has already been bound");
-    }
-
     // make sure render target is validated
     if(!target.is_validated()) {
         engine::util::throw_error("render target must be validated before being bound to program invocation");
@@ -485,11 +472,9 @@ void RenderingProgramInvocation::bind_render_target(
         // TODO make sure type of output is compatible?
     }
 
-    // save render target
-    if(target.has_depth_buffer()) {
-        depth_testing = true;
-    }
-    render_target.emplace(target);
+    // set render target
+    render_target.emplace(&target);
+    dirty_render_target = true;
 
     // set default clip rect
     clip_min_x = 0;
@@ -504,9 +489,14 @@ void RenderingProgramInvocation::draw(
     uint32_t first_primitive,
     uint32_t first_instance
 ) {
-    // make sure we have validated
-    assert(validated);
+    // validate
     validate_resource_bindings();
+    if(bound_attributes.size() != attributes.size()) {
+        engine::util::throw_error("must bind all vertex attributes before drawing");
+    }
+    if(!render_target.has_value()) {
+        engine::util::throw_error("must bind render target before drawing");
+    }
 
     // call subclass impl
     draw_impl(

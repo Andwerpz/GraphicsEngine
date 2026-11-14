@@ -53,7 +53,6 @@ inline void test_application() {
         engine::graphics::VertexInputRate::Vertex,
         engine::graphics::VertexFormat::Float32x3
     );
-    invocation->validate();
 
     auto projection_token = invocation->get_uniform<glm::mat4>("camera.projection");
     auto view_token = invocation->get_uniform<glm::mat4>("camera.view");

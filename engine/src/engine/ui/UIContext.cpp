@@ -3,7 +3,6 @@
 #include <engine/graphics/RenderTarget.h>
 #include <engine/graphics/GraphicsDevice.h>
 #include <engine/ui/UIContext.h>
-#include <engine/ui/Bounds.h>
 #include <engine/ui/UINode.h>
 
 namespace engine::ui {

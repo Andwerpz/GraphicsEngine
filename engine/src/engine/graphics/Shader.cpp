@@ -85,6 +85,48 @@ const char* get_image_dimension_string(SpvDim_ dim) {
         default:                 return "UNKNOWN";
     }
 }
+ 
+// number of interface locations an input/output of this type occupies
+uint32_t calc_nr_locations(const ShaderType& type) {
+    auto calc_nr_vector_locations = [](ShaderScalarType scalar, uint32_t dimension) -> uint32_t {
+        switch(scalar) {
+            case ShaderScalarType::Int:
+            case ShaderScalarType::UInt:
+            case ShaderScalarType::Float:
+                return 1;
+            case ShaderScalarType::Double:
+                // 3 and 4 component 64-bit vectors take 2 components
+                return dimension > 2 ? 2 : 1;
+            case ShaderScalarType::Bool:
+                engine::util::throw_error("cannot have interface type bool");
+                break;
+            default:
+                assert(false);
+        }
+        return 0;
+    };
+
+    return std::visit([&](const auto& t) -> uint32_t {
+        using T = std::decay_t<decltype(t)>;
+        if constexpr(std::is_same_v<T, ShaderScalarType>) {
+            return calc_nr_vector_locations(t, 1);
+        }
+        else if constexpr(std::is_same_v<T, ShaderVectorType>) {
+            return calc_nr_vector_locations(t.base_type, t.dimension);
+        }
+        else if constexpr(std::is_same_v<T, ShaderMatrixType>) {
+            // one run of locations per column
+            return t.cols * calc_nr_vector_locations(t.base_type, t.rows);
+        }
+        else if constexpr(std::is_same_v<T, ShaderArrayType>) {
+            return t.dimension * calc_nr_locations(*t.base_type);
+        }
+        else {
+            engine::util::throw_error("unsupported type while computing nr interface locations");
+            return 0;
+        }
+    }, type.type);
+}
 
 struct SpirvInstruction {
     SpvOp opcode;
@@ -676,8 +718,9 @@ void Shader::introspect() {
         SpvReflectTypeDescription* spv_type = spv_var->type_description;
         ShaderType type = shader_type_map.at(spv_type->id);
         std::string name = spv_var->name ? spv_var->name : "<unnamed>";
+        uint32_t nr_locations = calc_nr_locations(type);
         location = spv_var->location;
-        return ShaderInterfaceVariable(type, name);
+        return ShaderInterfaceVariable(type, name, nr_locations);
     };
 
     // extract inputs
