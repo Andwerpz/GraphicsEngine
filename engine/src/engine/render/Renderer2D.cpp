@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cmath>
 #include <iostream>
 
 namespace engine::render {
@@ -154,12 +155,16 @@ void Renderer2D::draw_quad(glm::mat4 model, glm::vec4 color) {
     push_quad(model, Rect2 {{0, 0}, {1, 1}}, color, Material {nullptr});
 }
 
+void Renderer2D::draw_quad(glm::mat4 model, Texture& texture, glm::vec4 color, Rect2 uv) {
+    push_quad(model, uv, color, Material {&texture});
+}
+
 void Renderer2D::draw_rect(Rect2 rect, glm::vec4 color) {
-    push_quad(rect, Rect2 {{0, 0}, {1, 1}}, color, Material {nullptr});
+    push_rect(rect, Rect2 {{0, 0}, {1, 1}}, color, Material {nullptr});
 }
 
 void Renderer2D::draw_rect(Rect2 rect, Texture& texture, glm::vec4 color, Rect2 uv) {
-    push_quad(rect, uv, color, Material {&texture});
+    push_rect(rect, uv, color, Material {&texture});
 }
 
 void Renderer2D::draw_custom_pass(CustomPass pass) {
@@ -309,12 +314,24 @@ void Renderer2D::push_quad(glm::mat4 model, Rect2 uv, glm::vec4 color, Material 
     );
 }
 
-void Renderer2D::push_quad(Rect2 rect, Rect2 uv, glm::vec4 color, Material material) {
+void Renderer2D::push_rect(Rect2 rect, Rect2 uv, glm::vec4 color, Material material) {
+    // snap to pixel
+    // a pixel is drawn over if their center is within the rect
+    float x0 = std::ceil(rect.pos.x - 0.5f);
+    float y0 = std::ceil(rect.pos.y - 0.5f);
+    float x1 = std::ceil(rect.max().x - 0.5f);
+    float y1 = std::ceil(rect.max().y - 0.5f);
+
+    // check for empty rectangle
+    if(x1 <= x0 || y1 <= y0) {
+        return;
+    }
+
     glm::mat4 model(1.0f);
-    model[0][0] = rect.dim.x;
-    model[1][1] = rect.dim.y;
-    model[3][0] = rect.pos.x;
-    model[3][1] = rect.pos.y;
+    model[0][0] = x1 - x0;
+    model[1][1] = y1 - y0;
+    model[3][0] = x0;
+    model[3][1] = y0;
     push_quad(model, uv, color, material);
 }
 

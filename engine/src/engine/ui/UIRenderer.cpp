@@ -9,6 +9,7 @@
 #include <filesystem>
 namespace fs = std::filesystem;
 
+#include <cmath>
 #include <iostream>
 
 namespace engine::ui {
@@ -124,11 +125,23 @@ void UIRenderer::draw_line(
 }
 
 void UIRenderer::draw_rect_outline(Rect2 rect, glm::vec4 color, float inset) {
-    rect.dim = rect.dim - glm::vec2(inset * 2.0f);
-    glm::vec2 c0 = rect.pos + glm::vec2(inset);
-    glm::vec2 c1 = c0;  c1.x += rect.dim.x - 1;
-    glm::vec2 c2 = c1;  c2.y += rect.dim.y - 1;
-    glm::vec2 c3 = c2;  c3.x -= rect.dim.x - 1;
+    glm::vec2 lo = rect.pos + glm::vec2(inset);
+    glm::vec2 hi = rect.max() - glm::vec2(inset);
+
+    int x0 = static_cast<int>(std::ceil(lo.x - 0.5f));
+    int y0 = static_cast<int>(std::ceil(lo.y - 0.5f));
+    int x1 = static_cast<int>(std::ceil(hi.x - 0.5f)) - 1;
+    int y1 = static_cast<int>(std::ceil(hi.y - 0.5f)) - 1;
+
+    // check for degenerate rectangle
+    if(x0 > x1 || y0 > y1) {
+        return;
+    }
+
+    glm::vec2 c0 {(float) x0, (float) y0};
+    glm::vec2 c1 {(float) x1, (float) y0};
+    glm::vec2 c2 {(float) x1, (float) y1};
+    glm::vec2 c3 {(float) x0, (float) y1};
     draw_line(c0, c1, 1, color);
     draw_line(c1, c2, 1, color);
     draw_line(c2, c3, 1, color);
@@ -183,7 +196,14 @@ void UIRenderer::draw_text(
         uv_dim.x /= atlas.get_width();
         uv_dim.y /= atlas.get_height();
 
-        draw_rect({pos, dim}, atlas_texture, color, {uv_pos, uv_dim});        
+        glm::mat4 model(1.0f);
+        model[0][0] = dim.x;
+        model[1][1] = dim.y;
+        model[3][0] = pos.x;
+        model[3][1] = pos.y;
+
+        Rect2 uv = {uv_pos, uv_dim};
+        draw_quad(model, atlas_texture, color, uv);
         pen.x += glyph.advance_x;
     }
 }

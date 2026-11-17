@@ -1,7 +1,10 @@
 #include <engine/graphics/Texture.h>
 #include <engine/util/error.h>
 #include <engine/asset/Image.h>
+
+#include <algorithm>
 #include <cassert>
+#include <vector>
 
 namespace engine::graphics {
 
@@ -110,6 +113,64 @@ void Texture::upload_image(
     // upload data
     upload_data(buf, mip_level, cube_face);
     free(buf);
+}
+
+engine::asset::Image Texture::save_image(uint32_t mip_level, uint32_t cube_face) {
+    if(mip_level >= mip_levels) {
+        engine::util::throw_error("mip_level out of range");
+    }
+    if(type != TextureDimension::D2 && type != TextureDimension::Cube) {
+        engine::util::throw_error("texture must be 2D or cubemap to save an image");
+    }
+    if(type == TextureDimension::D2) {
+        if(cube_face != 0) {
+            engine::util::throw_error("cube_face must be 0 for a 2D texture");
+        }
+    }
+    else {
+        if(cube_face >= 6) {
+            engine::util::throw_error("cube_face out of range");
+        }
+    }
+
+    switch(format) {
+        case TextureFormat::RGBA32F: {
+            uint32_t img_width = get_width(mip_level);
+            uint32_t img_height = get_height(mip_level);
+            std::vector<std::byte> raw((size_t) get_size(mip_level));
+            retrieve_data(raw.data(), mip_level, cube_face);
+
+            uint64_t pixel_count = (uint64_t) img_width * (uint64_t) img_height;
+            const float* src = reinterpret_cast<const float*>(raw.data());
+
+            auto quantize = [](float c) -> std::byte {
+                c = std::max(0.0f, std::min(1.0f, c));
+                return std::byte(static_cast<uint8_t>(c * 255.0f + 0.5f));
+            };
+            std::vector<std::byte> pixels(pixel_count * 4);
+            for(uint64_t i = 0; i < pixel_count; i++) {
+                pixels[i * 4 + 0] = quantize(src[i * 4 + 0]);
+                pixels[i * 4 + 1] = quantize(src[i * 4 + 1]);
+                pixels[i * 4 + 2] = quantize(src[i * 4 + 2]);
+                pixels[i * 4 + 3] = quantize(src[i * 4 + 3]);
+            }
+
+            return engine::asset::Image(
+                img_width,
+                img_height,
+                engine::asset::ImageFormat::RGBA8,
+                engine::asset::ImageAlphaMode::Premultiplied,
+                std::move(pixels)
+            );
+        }
+        case TextureFormat::Depth32F: {
+            engine::util::throw_error("Depth32F cannot be saved to image");
+        }
+        default: {
+            assert(false);
+            engine::util::throw_error("texture has format incompatible with image save");
+        }
+    }
 }
 
 }

@@ -55,18 +55,25 @@ public:
         //   maybe can do some linear algebra?
     }
 
-    void place_autotile(TileLayer& layer, const CellSet& cells) const {
+    // if predicate is not supplied, then neighbor cells will be determined from cells itself
+    // if predicate is supplied, then neighbor cells will be determined by predicate
+    void place_autotile(
+        TileLayer& layer, 
+        const CellSet& cells, 
+        const std::optional<std::reference_wrapper<const CellSet>> _predicate = std::nullopt
+    ) const {
+        const CellSet& predicate = _predicate.has_value() ? _predicate.value().get() : cells;
         for(const auto& c : cells) {
             // construct neighbor bitstring
             assert(neighbors.size() <= sizeof(uint64_t) * 8);
             uint64_t bits = 0;
             for(int i = (int) neighbors.size() - 1; i >= 0; i--) {
-                if(cells.contains(c + neighbors[i].offset)) bits |= 1;
                 bits <<= 1;
+                if(predicate.contains(c + neighbors[i].offset)) bits |= 1;
             }
 
             // place tile
-            assert(bits <= lut.size());
+            assert(bits < lut.size());
             layer.push(c, lut[bits]);
         }
     }

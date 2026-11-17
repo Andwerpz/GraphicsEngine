@@ -31,6 +31,7 @@
         { "name": "dev.wall.normal",    "atlas": "dev", "pos": { "x": 32,   "y": 0  } },
 
         // ceiling trim
+        { "name": "dev.ceiling_trim.0000",  "atlas": "dev", "pos": { "x": 32,   "y": 16 } },
         { "name": "dev.ceiling_trim.1000",  "atlas": "dev", "pos": { "x": 48,   "y": 0  } },
         { "name": "dev.ceiling_trim.0100",  "atlas": "dev", "pos": { "x": 64,   "y": 0  } },
         { "name": "dev.ceiling_trim.0010",  "atlas": "dev", "pos": { "x": 80,   "y": 0  } },
@@ -74,8 +75,64 @@
             "tiles": [
                 { "tile": "dev.wall.normal", "weight": 1.0 }
             ]
+        },
+        {
+            "name": "dev.trim",
+            "type": "autotile",
+            "neighbors": [
+                { "name": "n",  "offset": { "x":  0, "y": -1 } },
+                { "name": "e",  "offset": { "x":  1, "y":  0 } },
+                { "name": "s",  "offset": { "x":  0, "y":  1 } },
+                { "name": "w",  "offset": { "x": -1, "y":  0 } },
+                { "name": "nw", "offset": { "x": -1, "y": -1 } },
+                { "name": "ne", "offset": { "x":  1, "y": -1 } },
+                { "name": "se", "offset": { "x":  1, "y":  1 } },
+                { "name": "sw", "offset": { "x": -1, "y":  1 } }
+            ],
+            "rules": [
+                { "when": { "n": "missing", "e": "missing", "s": "missing", "w": "missing", "nw": "missing", "ne": "missing", "se": "missing", "sw": "missing" }, "tile": "dev.ceiling_trim.0000" },
+                { "when": { "n": "missing", "e": "missing", "s": "missing", "w": "missing", "nw": "present", "ne": "missing", "se": "missing", "sw": "missing" }, "tile": "dev.ceiling_trim.1000" },
+                { "when": { "n": "missing", "e": "missing", "s": "missing", "w": "missing", "nw": "missing", "ne": "present", "se": "missing", "sw": "missing" }, "tile": "dev.ceiling_trim.0100" },
+                { "when": { "n": "missing", "e": "missing", "s": "missing", "w": "missing", "nw": "missing", "ne": "missing", "se": "present", "sw": "missing" }, "tile": "dev.ceiling_trim.0010" },
+                { "when": { "n": "missing", "e": "missing", "s": "missing", "w": "missing", "nw": "missing", "ne": "missing", "se": "missing", "sw": "present" }, "tile": "dev.ceiling_trim.0001" },
+                { "when": { "e": "missing", "s": "missing", "w": "missing", "nw": "present", "ne": "present", "se": "missing", "sw": "missing" }, "tile": "dev.ceiling_trim.1100" },
+                { "when": { "n": "present", "e": "missing", "s": "missing", "w": "missing", "se": "missing", "sw": "missing" }, "tile": "dev.ceiling_trim.1100" },
+                { "when": { "n": "missing", "s": "missing", "w": "missing", "nw": "missing", "ne": "present", "se": "present", "sw": "missing" }, "tile": "dev.ceiling_trim.0110" },
+                { "when": { "n": "missing", "e": "present", "s": "missing", "w": "missing", "nw": "missing", "sw": "missing" }, "tile": "dev.ceiling_trim.0110" },
+                { "when": { "n": "missing", "e": "missing", "w": "missing", "nw": "missing", "ne": "missing", "se": "present", "sw": "present" }, "tile": "dev.ceiling_trim.0011" },
+                { "when": { "n": "missing", "e": "missing", "s": "present", "w": "missing", "nw": "missing", "ne": "missing" }, "tile": "dev.ceiling_trim.0011" },
+                { "when": { "n": "missing", "e": "missing", "s": "missing", "nw": "present", "ne": "missing", "se": "missing", "sw": "present" }, "tile": "dev.ceiling_trim.1001" },
+                { "when": { "n": "missing", "e": "missing", "s": "missing", "w": "present", "ne": "missing", "se": "missing" }, "tile": "dev.ceiling_trim.1001" },
+                { "when": { "s": "missing", "w": "missing", "nw": "present", "ne": "present", "se": "present", "sw": "missing" }, "tile": "dev.ceiling_trim.1110" },
+                { "when": { "e": "present", "s": "missing", "w": "missing", "nw": "present", "sw": "missing" }, "tile": "dev.ceiling_trim.1110" },
+                { "when": { "n": "present", "s": "missing", "w": "missing", "se": "present", "sw": "missing" }, "tile": "dev.ceiling_trim.1110" },
+                { "when": { "n": "present", "e": "present", "s": "missing", "w": "missing", "sw": "missing" }, "tile": "dev.ceiling_trim.1110" },
+                { "when": { "n": "missing", "w": "missing", "nw": "missing", "ne": "present", "se": "present", "sw": "present" }, "tile": "dev.ceiling_trim.0111" },
+                { "when": { "n": "missing", "s": "present", "w": "missing", "nw": "missing", "ne": "present" }, "tile": "dev.ceiling_trim.0111" },
+                { "when": { "n": "missing", "e": "present", "w": "missing", "nw": "missing", "sw": "present" }, "tile": "dev.ceiling_trim.0111" },
+                { "when": { "n": "missing", "e": "present", "s": "present", "w": "missing", "nw": "missing" }, "tile": "dev.ceiling_trim.0111" },
+                { "when": { "n": "missing", "e": "missing", "nw": "present", "ne": "missing", "se": "present", "sw": "present" }, "tile": "dev.ceiling_trim.1011" },
+                { "when": { "n": "missing", "e": "missing", "w": "present", "ne": "missing", "se": "present" }, "tile": "dev.ceiling_trim.1011" },
+                { "when": { "n": "missing", "e": "missing", "s": "present", "nw": "present", "ne": "missing" }, "tile": "dev.ceiling_trim.1011" },
+                { "when": { "n": "missing", "e": "missing", "s": "present", "w": "present", "ne": "missing" }, "tile": "dev.ceiling_trim.1011" },
+                { "when": { "e": "missing", "s": "missing", "nw": "present", "ne": "present", "se": "missing", "sw": "present" }, "tile": "dev.ceiling_trim.1101" },
+                { "when": { "e": "missing", "s": "missing", "w": "present", "ne": "present", "se": "missing" }, "tile": "dev.ceiling_trim.1101" },
+                { "when": { "n": "present", "e": "missing", "s": "missing", "se": "missing", "sw": "present" }, "tile": "dev.ceiling_trim.1101" },
+                { "when": { "n": "present", "e": "missing", "s": "missing", "w": "present", "se": "missing" }, "tile": "dev.ceiling_trim.1101" },
+                { "when": { "nw": "present", "ne": "present", "se": "present", "sw": "present" }, "tile": "dev.ceiling_trim.1111" },
+                { "when": { "w": "present", "ne": "present", "se": "present" }, "tile": "dev.ceiling_trim.1111" },
+                { "when": { "s": "present", "nw": "present", "ne": "present" }, "tile": "dev.ceiling_trim.1111" },
+                { "when": { "s": "present", "w": "present", "ne": "present" }, "tile": "dev.ceiling_trim.1111" },
+                { "when": { "e": "present", "nw": "present", "sw": "present" }, "tile": "dev.ceiling_trim.1111" },
+                { "when": { "e": "present", "s": "present", "nw": "present" }, "tile": "dev.ceiling_trim.1111" },
+                { "when": { "n": "present", "se": "present", "sw": "present" }, "tile": "dev.ceiling_trim.1111" },
+                { "when": { "n": "present", "w": "present", "se": "present" }, "tile": "dev.ceiling_trim.1111" },
+                { "when": { "n": "present", "e": "present", "sw": "present" }, "tile": "dev.ceiling_trim.1111" },
+                { "when": { "e": "present", "w": "present" }, "tile": "dev.ceiling_trim.1111" },
+                { "when": { "n": "present", "s": "present" }, "tile": "dev.ceiling_trim.1111" },
+                { "when": { "n": "missing", "e": "missing", "s": "missing", "w": "missing", "nw": "present", "ne": "missing", "se": "present", "sw": "missing" }, "tile": "dev.ceiling_trim.1010" },
+                { "when": { "n": "missing", "e": "missing", "s": "missing", "w": "missing", "nw": "missing", "ne": "present", "se": "missing", "sw": "present" }, "tile": "dev.ceiling_trim.0101" }
+            ]
         }
-
-        // TODO dev ceiling trim
     ]
 }

@@ -687,7 +687,7 @@ Shader::Shader(
 }
 
 void Shader::introspect() {
-    constexpr bool debug = true;
+    constexpr bool debug = false;
     if(debug) {
         std::cout << "introspecting !!" << std::endl;
         std::cout << "SPIR-V code size : " << spirv_code.size() << std::endl;

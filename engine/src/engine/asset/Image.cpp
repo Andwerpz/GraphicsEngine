@@ -22,6 +22,14 @@ static bool format_has_alpha(ImageFormat format) {
     }
 }
 
+Image::Image(const Image& other) : Asset(other) {
+    width = other.width;
+    height = other.height;
+    format = other.format;
+    alpha_mode = other.alpha_mode;
+    data = other.data;
+}
+
 Image::Image(Image&& other) :
     Asset(std::move(other))
 {
@@ -58,6 +66,35 @@ Image::Image(
 }
 
 Image::Image(
+    uint32_t _width,
+    uint32_t _height,
+    ImageFormat _format,
+    ImageAlphaMode _alpha_mode,
+    std::vector<std::byte>&& _data
+) : Asset() {
+    if(format_has_alpha(_format) && _alpha_mode == ImageAlphaMode::None) {
+        engine::util::throw_error("Image format has alpha channel, alpha mode cannot be None");
+    }
+    if(!format_has_alpha(_format) && _alpha_mode != ImageAlphaMode::None) {
+        engine::util::throw_error("Image format does not have alpha channel, alpha mode must be None");
+    }
+    if(_width == 0 || _height == 0) {
+        engine::util::throw_error("Image dimensions must be non-zero");
+    }
+
+    width = _width;
+    height = _height;
+    format = _format;
+    alpha_mode = _alpha_mode;
+
+    uint64_t expected = get_pixel_size() * (uint64_t) width * (uint64_t) height;
+    if(_data.size() != expected) {
+        engine::util::throw_error("image pixel buffer has the wrong size");
+    }
+    data = std::move(_data);
+}
+
+Image::Image(
     std::string_view addr,
     uint32_t _width,
     uint32_t _height,
@@ -70,6 +107,9 @@ Image::Image(
     }
     if(!format_has_alpha(_format) && _alpha_mode != ImageAlphaMode::None) {
         engine::util::throw_error("Image format does not have alpha channel, alpha mode must be None");
+    }
+    if(_width == 0 || _height == 0) {
+        engine::util::throw_error("Image dimensions must be non-zero");
     }
 
     width = _width;

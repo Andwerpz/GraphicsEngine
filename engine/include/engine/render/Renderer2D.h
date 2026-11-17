@@ -86,8 +86,15 @@ public:
 
     // draw quad helpers
     void draw_quad(glm::mat4 model, glm::vec4 color);
+    void draw_quad(
+        glm::mat4 model,
+        Texture& texture,
+        glm::vec4 color = {1, 1, 1, 1},
+        Rect2 uv = {{0, 0}, {1, 1}}
+    );
 
-    // draw axis aligned quad helpers
+    // draw axis + pixel aligned quad helpers
+    // a pixel is covered by a rect if its center lies inside the rect
     void draw_rect(Rect2 rect, glm::vec4 color);
     void draw_rect(
         Rect2 rect,
@@ -124,9 +131,11 @@ protected:
     // pushes a quad to the quad rendering pipeline
     void emit_quad(const QuadInstance& quad, const Material& material);
 
-    // helpers to push quad to the rendering pipeline
+    // push arbitrary quad to rendering pipeline
     void push_quad(glm::mat4 model, Rect2 uv, glm::vec4 color, Material material);
-    void push_quad(Rect2 rect, Rect2 uv, glm::vec4 color, Material material);
+    
+    // push axis + pixel aligned quad to rendering pipeline
+    void push_rect(Rect2 rect, Rect2 uv, glm::vec4 color, Material material);
 
     // underlying graphics device used for rendering
     GraphicsDevice& device;

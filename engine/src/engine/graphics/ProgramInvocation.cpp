@@ -144,6 +144,10 @@ UniformToken<T> ProgramInvocation::get_uniform(std::string_view _addr) {
         if(!found_index) {
             engine::util::throw_error("could not find closing bracket");
         }
+        // if there is a '.' after the ']', remove it
+        if(addr.size() > 0 && addr[0] == '.') {
+            addr = addr.substr(1);
+        }
         // try to convert index string into unsigned integer
         try {
             return std::stoull(index_str);

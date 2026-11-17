@@ -379,7 +379,8 @@ public:
             std::move(atlases),
             std::move(tiles),
             std::move(placers),
-            std::move(tiles_by_name)
+            std::move(tiles_by_name),
+            std::move(channels)
         );
     }
 

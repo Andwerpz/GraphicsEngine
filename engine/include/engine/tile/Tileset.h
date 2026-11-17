@@ -73,14 +73,14 @@ public:
         return *p;
     }
 
-    std::set<std::string> get_atlas_names() {
+    std::set<std::string> get_atlas_names() const {
         std::set<std::string> res;
         for(const auto& i : atlases) {
             res.emplace(i.first);
         }
         return res;
     }
-    std::set<std::string> get_tile_names() {
+    std::set<std::string> get_tile_names() const {
         std::set<std::string> res;
         for(const auto& i : tiles) {
             assert(!res.contains(i.name));
@@ -88,12 +88,15 @@ public:
         }
         return res;
     }
-    std::set<std::string> get_placer_names() {
+    std::set<std::string> get_placer_names() const {
         std::set<std::string> res;
         for(const auto& i : placers) {
             res.emplace(i.first);
         }
         return res;
+    }
+    const std::set<std::string>& get_channel_names() const {
+        return channel_names;
     }
 
 private:
@@ -104,14 +107,16 @@ private:
         std::map<std::string, std::unique_ptr<TileAtlas>>&& atlases,
         std::vector<Tile>&& tiles,
         std::map<std::string, std::unique_ptr<TilePlacer>>&& placers,
-        std::map<std::string, TileID>&& tiles_by_name
+        std::map<std::string, TileID>&& tiles_by_name,
+        std::set<std::string>&& channel_names
     ) : Asset(addr),
         name(name),
         tile_size(tile_size), 
         atlases(std::move(atlases)), 
         tiles(std::move(tiles)),
         placers(std::move(placers)),
-        tiles_by_name(std::move(tiles_by_name))
+        tiles_by_name(std::move(tiles_by_name)),
+        channel_names(std::move(channel_names))
     {}
     NON_COPYABLE_NON_MOVABLE(Tileset);
 
@@ -132,6 +137,10 @@ private:
 
     // mapping from tile name to tile id
     std::map<std::string, TileID> tiles_by_name;
+
+    // set of all channel names
+    // all atlases owned by this tileset should have exactly these channels
+    std::set<std::string> channel_names;
 };
 
 }

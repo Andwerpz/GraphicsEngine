@@ -4,6 +4,7 @@ namespace fs = std::filesystem;
 #include <iostream>
 #include <chrono>
 #include <thread>
+#include <glm/glm.hpp>
 
 #include <engine/asset/Font.h>
 #include <engine/asset/Image.h>
@@ -33,6 +34,7 @@ namespace fs = std::filesystem;
 #include <engine/tile/placer/StampPlacer.h>
 
 #include "render/TileCompositor.h"
+#include "render/CubeSet.h"
 
 int main() {
     // setup graphics device
@@ -101,8 +103,6 @@ int main() {
     }
 
     // tileset editor window
-    std::unique_ptr<engine::graphics::Texture> floor_albedo_tex;
-    std::unique_ptr<engine::graphics::Texture> floor_normal_tex;
     {
         using TileID = engine::tile::TileID;
         using Tileset = engine::tile::Tileset;
@@ -139,26 +139,96 @@ int main() {
         constexpr uint64_t LAYER_WALL = 1;
         constexpr uint64_t LAYER_TRIM = 2;
 
-        CellSet floor_cells = CellSet::from_rect(glm::vec2(0), glm::vec2(5));
-        TileGrid grid(10, 10);
+        constexpr uint32_t grid_w = 18;
+        constexpr uint32_t grid_h = 16;
+        CellSet walkable_cells;
+        walkable_cells.insert_rect({2, 3}, {6, 12});
+        walkable_cells.insert_rect({6, 6}, {10, 8});
+        walkable_cells.insert_rect({10, 4}, {13, 10});
+        walkable_cells.insert_rect({13, 6}, {16, 10});
+        walkable_cells.insert_rect({3, 12}, {8, 15});
+        CellSet all_cells = CellSet::from_rect({0, 0}, {grid_w, grid_h});
+        TileGrid grid(grid_w, grid_h);
         
         // place floor
         {
+            // floor cells are exactly the walkable cells
+            CellSet floor_cells = walkable_cells;
+
+            // place small tiles
             const RandomPlacer& floor_placer = tileset.get_placer<RandomPlacer>("dev.floor");
             floor_placer.place_random(grid.get_layer(LAYER_FLOOR), floor_cells);
 
-            TileLayer& floor_layer = grid.get_layer(LAYER_FLOOR);
-            for(auto c : floor_cells) {
-                assert(floor_layer.get(c).size() == 1);
-                TileID id = floor_layer.get(c)[0];
-                std::cout << "TILE : " << c.x << " " << c.y << " " << id << std::endl;
-            }
+            // place big tile
+            const StampPlacer& big_tile = tileset.get_placer<StampPlacer>("dev.big_tile");
+            big_tile.place_stamp(grid.get_layer(LAYER_FLOOR), {11, 7});
         }
 
-        // render world to texture
-        TileCompositor compositor(device, tileset, grid);
-        floor_albedo_tex = compositor.create_texture(LAYER_FLOOR, "albedo");
-        floor_normal_tex = compositor.create_texture(LAYER_FLOOR, "normal");
+        // place walls
+        {
+            // wall cells are any cell that is one or two above a walkable cell with no walkable cell above it
+            CellSet above_walkable = walkable_cells.translated({0, -1}) - walkable_cells;
+            above_walkable |= above_walkable.translated({0, -1});
+
+            // place walls
+            const RandomPlacer& wall_placer = tileset.get_placer<RandomPlacer>("dev.wall");
+            wall_placer.place_random(grid.get_layer(LAYER_WALL), above_walkable);
+        }
+
+        // place trim
+        {   
+            // trim predicate is the walkable cells shifted upwards by 2
+            // set of trim cells is all cells - trim predicate
+            CellSet trim_predicate = walkable_cells.translated({0, -2});
+            CellSet trim_cells = all_cells - trim_predicate;
+
+            // place trim tiles
+            const AutotilePlacer& trim_placer = tileset.get_placer<AutotilePlacer>("dev.trim");
+            trim_placer.place_autotile(grid.get_layer(LAYER_TRIM), trim_cells, trim_predicate);
+        }
+
+        std::map<uint64_t, std::string> layer_to_string;
+        layer_to_string[LAYER_FLOOR] = "floor";
+        layer_to_string[LAYER_WALL] = "wall";
+        layer_to_string[LAYER_TRIM] = "trim";
+        auto render_layer = [&](uint64_t layer) -> void {
+            // render world to texture
+            TileCompositor compositor(device, tileset, grid);
+            std::set<std::string> channels = tileset.get_channel_names();
+            for(const std::string& channel : channels) {
+                auto tex = compositor.create_texture(layer, channel);
+                fs::path image_path = fs::current_path() / (layer_to_string[layer] + "_" + channel + ".png");
+                tex->save_image().export_as_png(image_path);
+                std::cout << "SAVED " << layer_to_string[layer] << " " << channel << " : " << image_path << std::endl;
+            }
+        };
+        render_layer(LAYER_FLOOR);
+        render_layer(LAYER_WALL);
+        render_layer(LAYER_TRIM);
+
+        // generate position texture
+        {   
+            CubeSet cubes;
+            for(const auto& cell : walkable_cells) {
+                cubes.insert({cell.x, -1, cell.y});
+            }
+            CellSet wall_cells = walkable_cells.dilated() - walkable_cells;
+            for(const auto& cell : wall_cells) {
+                cubes.insert({cell.x, 0, cell.y});
+                cubes.insert({cell.x, 1, cell.y});
+            }
+
+            auto position_tex = cubes.create_texture(
+                device, 
+                grid_w, 
+                grid_h, 
+                tileset.get_tile_size(),
+                CubeSet::PositionEncoding::Normalized
+            );
+            fs::path image_path = fs::current_path() / "position.png";
+            position_tex->save_image().export_as_png(image_path);
+            std::cout << "SAVED position : " << image_path << std::endl;
+        }
     }
 
     // setup application

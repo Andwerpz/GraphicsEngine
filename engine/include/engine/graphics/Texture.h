@@ -3,9 +3,7 @@
 #include <math.h>
 #include <atomic>
 
-namespace engine::asset {
-class Image;
-}
+#include <engine/asset/Image.h>
 
 namespace engine::graphics {
 
@@ -93,6 +91,16 @@ public:
         const engine::asset::Image& image,
         uint32_t mip_level = 0,
         uint32_t cube_face = 0
+    );
+
+    // saves texture data into a new image
+    // this texture must be 2D or a Cubemap
+    // there is different behaviour depending on what texel format this texture has:
+    // - RGBA32F : texels are quantized to RGBA8, values outside [0, 1] are clamped
+    // - Depth32F : cannot be saved
+    engine::asset::Image save_image(
+        uint32_t mip_level = 0,
+        uint32_t layer = 0
     );
 
     // generates mipmaps using mip level 0 as the base

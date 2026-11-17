@@ -18,9 +18,10 @@ public:
     Asset(std::string_view addr);
     virtual ~Asset() = 0;
 
-    NON_COPYABLE(Asset);
+    Asset(const Asset& other);
+    Asset& operator=(const Asset& other) = delete;
     Asset(Asset&& other);
-    Asset& operator=(Asset&& other);
+    Asset& operator=(Asset&& other) = delete;
 
     AssetID get_asset_id() const {
         return asset_id;
