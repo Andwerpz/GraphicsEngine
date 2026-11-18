@@ -25,8 +25,8 @@ Program::Program(std::vector<Shader*> shaders) {
 Program::~Program() = default;
 
 uint32_t Program::get_output_location_extent() {
-    if(interface.outputs.size() == 0) return 0;
-    return interface.outputs.rbegin()->first + 1;
+    if(interface.get_outputs().size() == 0) return 0;
+    return interface.get_outputs().rbegin()->first + 1;
 }
 
 

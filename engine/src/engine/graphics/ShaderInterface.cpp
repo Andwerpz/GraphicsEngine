@@ -32,10 +32,13 @@ ShaderInterface ShaderInterface::unify(ShaderInterface& left, ShaderInterface& r
 
     // add inputs and outputs
     ret.inputs = left.inputs;
+    ret.input_names = left.input_names;
     ret.outputs = right.outputs;
+    ret.output_names = right.output_names;
 
     // add left resources
     ret.resources = left.resources;
+    ret.resource_names = left.resource_names;
 
     // add right resources
     for(auto i = right.resources.begin(); i != right.resources.end(); i++) {
@@ -49,8 +52,14 @@ ShaderInterface ShaderInterface::unify(ShaderInterface& left, ShaderInterface& r
             }
         }
         else {
-            // just insert the resource
+            // make sure the resource name isn't already used
+            if(ret.resource_names.contains(res.name)) {
+                engine::util::throw_error("Duplicate resource name : " + res.name);
+            }
+
+            // insert the resource
             ret.resources.insert({location, i->second});
+            ret.resource_names.insert({res.name, location});
         }
     }
     
@@ -61,35 +70,33 @@ void ShaderInterface::add_input_variable(uint32_t location, ShaderInterfaceVaria
     if(inputs.contains(location)) {
         engine::util::throw_error("interface already has input on location : " + std::to_string(location));
     }
+    if(input_names.contains(variable.name)) {
+        engine::util::throw_error("duplicate input variable name : " + variable.name);
+    }
     inputs.insert({location, variable});
+    input_names.insert({variable.name, location});
 }
 
 void ShaderInterface::add_output_variable(uint32_t location, ShaderInterfaceVariable variable) {
     if(outputs.contains(location)) {
         engine::util::throw_error("interface already has output on location : " + std::to_string(location));
     }
+    if(output_names.contains(variable.name)) {
+        engine::util::throw_error("duplicate output variable name : " + variable.name);
+    }
     outputs.insert({location, variable});
+    output_names.insert({variable.name, location});
 }
 
 void ShaderInterface::add_resource(ShaderResourceLocation location, ShaderResource resource) {
     if(resources.contains(location)) {
         engine::util::throw_error("interface already contains resource on location : {" + std::to_string(location.first) + ", " + std::to_string(location.second) + "}");
     }
+    if(resource_names.contains(resource.name)) {
+        engine::util::throw_error("duplicate resource name : " + resource.name);
+    }
     resources.insert({location, resource});
-}
-
-ShaderResource& ShaderInterface::get_resource(ShaderResourceLocation location) {
-    if(!resources.contains(location)) {
-        engine::util::throw_error("interface does not contain resource on location : {" + std::to_string(location.first) + ", " + std::to_string(location.second) + "}");
-    }
-    return resources.at(location);
-}
-
-ShaderResourceType ShaderInterface::get_resource_type(ShaderResourceLocation location) {
-    if(!resources.contains(location)) {
-        engine::util::throw_error("interface does not contain resource on location : {" + std::to_string(location.first) + ", " + std::to_string(location.second) + "}");
-    }
-    return resources.at(location).base_type;
+    resource_names.insert({resource.name, location});
 }
 
 }

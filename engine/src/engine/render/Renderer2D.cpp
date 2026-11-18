@@ -75,7 +75,7 @@ Renderer2D::Renderer2D(
         compositing_to_target = compositing_program->create_invocation();
         compositing_to_target->bind_render_target(target);
         compositing_to_target->bind_sampled_texture(
-            {0, 0}, *compositing_texture, *default_sampler
+            "albedo", *compositing_texture, *default_sampler
         );
     }
 
@@ -90,24 +90,24 @@ Renderer2D::Renderer2D(
         quad_program = create_program("quad");
         quad_drawer = quad_program->create_invocation();
         quad_drawer->bind_render_target(*compositing_target);
-        quad_drawer->bind_vertex_attribute(     // instance model mat4
-            0,
+        quad_drawer->bind_vertex_attribute(
+            "model",
             *quad_instance_buffer,
             0,
             QUAD_INSTANCE_SIZE,
             VertexInputRate::Instance,
             VertexFormat::Float32x4x4
         );
-        quad_drawer->bind_vertex_attribute(     // instance uv
-            4,
+        quad_drawer->bind_vertex_attribute(
+            "uv",
             *quad_instance_buffer,
             4 * 16,
             QUAD_INSTANCE_SIZE,
             VertexInputRate::Instance,
             VertexFormat::Float32x4
         );
-        quad_drawer->bind_vertex_attribute(     // instance color
-            5,
+        quad_drawer->bind_vertex_attribute(
+            "color",
             *quad_instance_buffer,
             4 * 20,
             QUAD_INSTANCE_SIZE,
@@ -144,7 +144,7 @@ Renderer2D::Renderer2D(
         scratch_to_compositing = compositing_program->create_invocation();
         scratch_to_compositing->bind_render_target(*compositing_target);
         scratch_to_compositing->bind_sampled_texture(
-            {0, 0}, *scratch_texture, *default_sampler
+            "albedo", *scratch_texture, *default_sampler
         );
         scratch_to_compositing->do_clear_color(false);
         scratch_to_compositing->do_clear_depth(false);
@@ -227,7 +227,7 @@ void Renderer2D::render() {
         }
         else if(const DrawQuadBatch* cmd = std::get_if<DrawQuadBatch>(&_cmd)) {
             Texture& texture = cmd->material.texture ? *cmd->material.texture : *default_texture;
-            quad_drawer->bind_sampled_texture({0, 1}, texture, *default_sampler);
+            quad_drawer->bind_sampled_texture("albedo", texture, *default_sampler);
             quad_drawer->set_clip_rect(clip_min_x, clip_min_y, clip_width, clip_height);
 
             // draw batches in GPU buffer sized chunks

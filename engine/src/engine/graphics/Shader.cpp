@@ -687,7 +687,7 @@ Shader::Shader(
 }
 
 void Shader::introspect() {
-    constexpr bool debug = false;
+    constexpr bool debug = true;
     if(debug) {
         std::cout << "introspecting !!" << std::endl;
         std::cout << "SPIR-V code size : " << spirv_code.size() << std::endl;
@@ -763,9 +763,16 @@ void Shader::introspect() {
         try_with_error(spvReflectEnumerateDescriptorBindings(&spv_module, &count, resources.data()), "Failed to gather SPIR-V resources");
 
         for(auto* spv_resource : resources) {
-            std::string name = spv_resource->name;
             uint32_t set = spv_resource->set;
             uint32_t binding = spv_resource->binding;
+
+            // we require all resources to have a name
+            if(spv_resource->name == nullptr) {
+                engine::util::throw_error("shader resource at location : {" + std::to_string(set) + ", " + std::to_string(binding) + "} does not have a name");
+            }
+            assert(spv_resource->name != nullptr);
+            std::string name = spv_resource->name;
+
             switch(spv_resource->descriptor_type) {
                 case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER: {
                     // requires a buffer
@@ -813,6 +820,7 @@ void Shader::introspect() {
             std::cout << "Resource : " << "\n";
             std::cout << "    set = " << set << "\n";
             std::cout << "    binding = " << binding << "\n";
+            std::cout << "    name = " << resource.name << "\n";
             switch(resource.base_type) {
                 case ShaderResourceType::UniformBuffer: {
                     std::cout << "    resource_type = UniformBuffer" << "\n";

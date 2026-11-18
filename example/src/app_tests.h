@@ -38,7 +38,7 @@ inline void test_application() {
     auto invocation = program->create_invocation(); 
     invocation->bind_render_target(*window_render_target);
     invocation->bind_vertex_attribute(
-        0,      // location
+        "pos",
         *cube_vertex_buffer,
         0,      // offset
         12,     // stride
@@ -46,7 +46,7 @@ inline void test_application() {
         engine::graphics::VertexFormat::Float32x3
     );
     invocation->bind_vertex_attribute(
-        1,      // location
+        "normal",
         *cube_normal_buffer,
         0,      // offset
         12,     // stride

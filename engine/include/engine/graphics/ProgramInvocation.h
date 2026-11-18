@@ -45,18 +45,14 @@ struct UniformToken {
 class ProgramInvocation {
 public:
     void bind_uniform_buffer(
-        ShaderResourceLocation location, 
+        std::string_view name,
         Buffer& uniform_buffer
     );
     void bind_sampled_texture(
-        ShaderResourceLocation location,
-        Texture& texture, 
+        std::string_view name,
+        Texture& texture,
         Sampler& sampler
     );
-
-    // if the underlying slot refers to a uniform buffer, returns the buffer
-    // otherwise throws an error
-    Buffer& get_uniform_buffer(ShaderResourceLocation location);
 
     // retrieve a token that can be used to set uniforms
     // meant to be done once at init-time as parsing the address string is slow
@@ -109,6 +105,10 @@ protected:
         Program& program
     );
     virtual ~ProgramInvocation() = 0;
+
+    // if the underlying slot refers to a uniform buffer, returns the buffer
+    // otherwise throws an error
+    Buffer& get_uniform_buffer(ShaderResourceLocation location);
 
     // bind a resource to this program invocation
     // marks the location as dirty
@@ -166,7 +166,7 @@ enum class IndexFormat {
 class RenderingProgramInvocation : public ProgramInvocation {
 public: 
     void bind_vertex_attribute(
-        uint32_t location,
+        std::string_view name,
         Buffer& buffer,
         uint32_t offset,
         uint32_t stride,

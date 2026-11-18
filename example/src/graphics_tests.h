@@ -87,7 +87,7 @@ inline void test_cube() {
     auto invocation = program->create_invocation(); 
     invocation->bind_render_target(*window_render_target);
     invocation->bind_vertex_attribute(
-        0,      // location
+        "pos",
         *cube_vertex_buffer,
         0,      // offset
         12,     // stride
@@ -95,7 +95,7 @@ inline void test_cube() {
         engine::graphics::VertexFormat::Float32x3
     );
     invocation->bind_vertex_attribute(
-        1,      // location
+        "normal",
         *cube_normal_buffer,
         0,      // offset
         12,     // stride
@@ -195,7 +195,7 @@ inline void test_texture() {
     invocation->bind_render_target(*window_render_target);
 
     invocation->bind_vertex_attribute(
-        0,      // location
+        "pos",
         *cube_vertex_buffer,
         0,      // offset
         12,     // stride
@@ -203,7 +203,7 @@ inline void test_texture() {
         engine::graphics::VertexFormat::Float32x3
     );
     invocation->bind_vertex_attribute(
-        1,      // location
+        "normal",
         *cube_normal_buffer,
         0,      // offset
         12,     // stride
@@ -211,7 +211,7 @@ inline void test_texture() {
         engine::graphics::VertexFormat::Float32x3
     );
     invocation->bind_vertex_attribute(
-        2,      // location
+        "uv",
         *cube_uv_buffer,
         0,      // offset
         8,      // stride
@@ -220,7 +220,7 @@ inline void test_texture() {
     );
 
     invocation->bind_sampled_texture(
-        {0, 1},
+        "albedo",
         *texture,
         *sampler
     );
@@ -346,7 +346,7 @@ inline void test_skybox() {
         skybox_invocation->bind_render_target(*window_render_target);
 
         skybox_invocation->bind_vertex_attribute(
-            0,      // location
+            "pos",
             *cube_vertex_buffer,
             0,      // offset
             12,     // stride
@@ -354,7 +354,7 @@ inline void test_skybox() {
             engine::graphics::VertexFormat::Float32x3
         );
         skybox_invocation->bind_vertex_attribute(
-            1,      // location
+            "normal",
             *cube_normal_buffer,
             0,      // offset
             12,     // stride
@@ -362,7 +362,7 @@ inline void test_skybox() {
             engine::graphics::VertexFormat::Float32x3
         );
         skybox_invocation->bind_vertex_attribute(
-            2,      // location
+            "uv",
             *cube_uv_buffer,
             0,      // offset
             8,      // stride
@@ -371,7 +371,7 @@ inline void test_skybox() {
         );
 
         skybox_invocation->bind_sampled_texture(
-            {0, 1},
+            "cubemap",
             *skybox,
             *sampler
         );
@@ -382,7 +382,7 @@ inline void test_skybox() {
         cube_invocation->bind_render_target(*window_render_target);
         
         cube_invocation->bind_vertex_attribute(
-            0,      // location
+            "pos",
             *cube_vertex_buffer,
             0,      // offset
             12,     // stride
@@ -390,7 +390,7 @@ inline void test_skybox() {
             engine::graphics::VertexFormat::Float32x3
         );
         cube_invocation->bind_vertex_attribute(
-            1,      // location
+            "normal",
             *cube_normal_buffer,
             0,      // offset
             12,     // stride
@@ -398,7 +398,7 @@ inline void test_skybox() {
             engine::graphics::VertexFormat::Float32x3
         );
         cube_invocation->bind_vertex_attribute(
-            2,      // location
+            "uv",
             *cube_uv_buffer,
             0,      // offset
             8,      // stride
@@ -407,7 +407,7 @@ inline void test_skybox() {
         );
 
         cube_invocation->bind_sampled_texture(
-            {0, 1},
+            "albedo",
             *texture,
             *sampler
         );
@@ -523,7 +523,7 @@ inline void test_render_target() {
     {
         cube_invocation->bind_render_target(*cube_render_target);
         cube_invocation->bind_vertex_attribute(
-            0,      // location
+            "pos",
             *cube_vertex_buffer,
             0,      // offset
             12,     // stride
@@ -531,7 +531,7 @@ inline void test_render_target() {
             engine::graphics::VertexFormat::Float32x3
         );
         cube_invocation->bind_vertex_attribute(
-            1,      // location
+            "normal",
             *cube_normal_buffer,
             0,      // offset
             12,     // stride
@@ -544,7 +544,7 @@ inline void test_render_target() {
     {
         invocation->bind_render_target(*window_render_target);
         invocation->bind_vertex_attribute(
-            0,      // location
+            "pos",
             *cube_vertex_buffer,
             0,      // offset
             12,     // stride
@@ -552,7 +552,7 @@ inline void test_render_target() {
             engine::graphics::VertexFormat::Float32x3
         );
         invocation->bind_vertex_attribute(
-            1,      // location
+            "normal",
             *cube_normal_buffer,
             0,      // offset
             12,     // stride
@@ -560,7 +560,7 @@ inline void test_render_target() {
             engine::graphics::VertexFormat::Float32x3
         );
         invocation->bind_vertex_attribute(
-            2,      // location
+            "uv",
             *cube_uv_buffer,
             0,      // offset
             8,      // stride
@@ -569,7 +569,7 @@ inline void test_render_target() {
         );
     }
     invocation->bind_sampled_texture(
-        {0, 1},
+        "albedo",
         *cube_texture,
         *sampler
     );
@@ -699,20 +699,17 @@ inline void test_separate_invocations() {
         auto& invocation,
         auto& buffer
     ) {
-        // Matrix occupies attribute locations 0, 1, 2, and 3.
-        for (uint32_t column = 0; column < 4; ++column) {
-            invocation->bind_vertex_attribute(
-                column,
-                *buffer,
-                column * sizeof(glm::vec4),
-                sizeof(RectInstance),
-                VertexInputRate::Instance,
-                VertexFormat::Float32x4
-            );
-        }
+        invocation->bind_vertex_attribute(
+            "model",
+            *buffer,
+            0,
+            sizeof(RectInstance),
+            VertexInputRate::Instance,
+            VertexFormat::Float32x4x4
+        );
 
         invocation->bind_vertex_attribute(
-            4,
+            "color",
             *buffer,
             4 * sizeof(glm::vec4),
             sizeof(RectInstance),
@@ -783,11 +780,11 @@ inline void test_same_invocation_twice() {
     auto invocation = program->create_invocation();
     invocation->bind_render_target(*window_render_target);
     invocation->bind_vertex_attribute(
-        0, *instance_buffer, 0, sizeof(RectInstance),
+        "model", *instance_buffer, 0, sizeof(RectInstance),
         VertexInputRate::Instance, VertexFormat::Float32x4x4
     );
     invocation->bind_vertex_attribute(
-        4, *instance_buffer, 4 * sizeof(glm::vec4), sizeof(RectInstance),
+        "color", *instance_buffer, 4 * sizeof(glm::vec4), sizeof(RectInstance),
         VertexInputRate::Instance, VertexFormat::Float32x4
     );
 
@@ -887,7 +884,7 @@ inline void test_sampler_array() {
     auto invocation = program->create_invocation();
     invocation->bind_render_target(*window_render_target);
     invocation->bind_sampled_texture(
-        {0, 1},
+        "textures",
         *texture,
         *sampler
     );

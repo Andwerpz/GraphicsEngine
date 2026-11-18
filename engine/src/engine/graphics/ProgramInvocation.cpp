@@ -19,9 +19,8 @@ ProgramInvocation::ProgramInvocation(
     program(program) 
 {   
     ShaderInterface& program_interface = program.get_interface();
-    for(auto i = program_interface.resources.begin(); i != program_interface.resources.end(); i++) {
-        auto location = i->first;
-        ShaderResource& resource_interface = i->second;
+    for(auto i = program_interface.get_resources().begin(); i != program_interface.get_resources().end(); i++) {
+        const ShaderResource& resource_interface = i->second;
         switch(resource_interface.base_type) {
             case ShaderResourceType::UniformBuffer: {
                 // generate a default uniform buffer
@@ -31,7 +30,7 @@ ProgramInvocation::ProgramInvocation(
                     BufferUsage::Uniform,
                     BufferFrequency::Dynamic
                 );
-                bind_uniform_buffer(location, *buffer);
+                bind_uniform_buffer(resource_interface.name, *buffer);
                 uniform_buffers.emplace_back(std::move(buffer));
                 break;
             }
@@ -41,9 +40,11 @@ ProgramInvocation::ProgramInvocation(
 
 ProgramInvocation::~ProgramInvocation() = default;
 
-void ProgramInvocation::bind_uniform_buffer(ShaderResourceLocation location, Buffer& uniform_buffer) {
-    // check underlying resource binding
+void ProgramInvocation::bind_uniform_buffer(std::string_view name, Buffer& uniform_buffer) {
     ShaderInterface& program_interface = program.get_interface();
+    ShaderResourceLocation location = program_interface.get_resource_location(std::string(name));
+
+    // check underlying resource binding
     if(program_interface.get_resource_type(location) != ShaderResourceType::UniformBuffer) {
         engine::util::throw_error("bind_uniform_buffer underlying resource descriptor is not UniformBuffer");
     }
@@ -54,7 +55,7 @@ void ProgramInvocation::bind_uniform_buffer(ShaderResourceLocation location, Buf
     }
 
     // make sure buffer is large enough
-    ShaderResource& resource_interface = program_interface.get_resource(location);
+    const ShaderResource& resource_interface = program_interface.get_resource(location);
     uint64_t required_size = resource_interface.uniform_buffer.blockvar.size;
     if(uniform_buffer.get_size() < required_size) {
         engine::util::throw_error("uniform buffer not large enough, required size : " + std::to_string(required_size));
@@ -64,8 +65,10 @@ void ProgramInvocation::bind_uniform_buffer(ShaderResourceLocation location, Buf
     bind_resource(location, ResourceBinding::create_uniform_buffer(uniform_buffer));
 }
 
-void ProgramInvocation::bind_sampled_texture(ShaderResourceLocation location, Texture& texture, Sampler& sampler) {
-    ShaderResource& resource = program.get_interface().get_resource(location);
+void ProgramInvocation::bind_sampled_texture(std::string_view name, Texture& texture, Sampler& sampler) {
+    ShaderInterface& program_interface = program.get_interface();
+    ShaderResourceLocation location = program_interface.get_resource_location(std::string(name));
+    const ShaderResource& resource = program_interface.get_resource(location);
     
     // check underlying resource binding
     if(resource.base_type != ShaderResourceType::SampledTexture) {
@@ -73,7 +76,7 @@ void ProgramInvocation::bind_sampled_texture(ShaderResourceLocation location, Te
     }
 
     // make sure texture dimension is correct
-    ShaderImageType& image_type = resource.sampled_texture.image_type;
+    const ShaderImageType& image_type = resource.sampled_texture.image_type;
     if(image_type.dimension != texture.get_dimension()) {
         engine::util::throw_error("bind_sampled_texture texture dimension mismatch");
     }
@@ -168,10 +171,7 @@ UniformToken<T> ProgramInvocation::get_uniform(std::string_view _addr) {
         // find the resource in the interface that has name equal to the addr buffer name
         std::string buffer_name = get_buffer_name(addr);
         ShaderInterface& interface = program.get_interface();
-        for(auto i = interface.resources.begin(); i != interface.resources.end(); i++) {
-            if(i->second.name == buffer_name) return i->first;
-        }
-        engine::util::throw_error("addr refers to a resource that does not exist : \"" + buffer_name + "\"");
+        return interface.get_resource_location(buffer_name);
     };
 
     // make sure location corresponds to a uniform buffer
@@ -182,10 +182,10 @@ UniformToken<T> ProgramInvocation::get_uniform(std::string_view _addr) {
     }
 
     // get blockvar
-    ShaderResource& interface_resource = program.get_interface().resources.at(location);
+    const ShaderResource& interface_resource = program.get_interface().get_resource(location);
     assert(interface_resource.base_type == ShaderResourceType::UniformBuffer);
-    ShaderType* type = &interface_resource.uniform_buffer.type;
-    ShaderBlockVariable* blockvar = &interface_resource.uniform_buffer.blockvar;
+    const ShaderType* type = &interface_resource.uniform_buffer.type;
+    const ShaderBlockVariable* blockvar = &interface_resource.uniform_buffer.blockvar;
 
     // figure out byte offset into buffer
     uint64_t offset = 0;
@@ -193,10 +193,10 @@ UniformToken<T> ProgramInvocation::get_uniform(std::string_view _addr) {
         // array indexing
         if(blockvar->array_info.dimensions.size() != 0) {
             uint64_t curr_offset = 0;
-            std::vector<uint64_t>& dimensions = blockvar->array_info.dimensions;
+            const std::vector<uint64_t>& dimensions = blockvar->array_info.dimensions;
             for(int i = 0; i < dimensions.size(); i++) {
                 assert(std::holds_alternative<ShaderArrayType>(type->type));
-                ShaderArrayType& array_type = std::get<ShaderArrayType>(type->type);
+                const ShaderArrayType& array_type = std::get<ShaderArrayType>(type->type);
                 assert(dimensions[i] == array_type.dimension);
 
                 // get array index, make sure it isn't out of bounds
@@ -215,16 +215,16 @@ UniformToken<T> ProgramInvocation::get_uniform(std::string_view _addr) {
 
         // struct members
         if(blockvar->struct_info.members.size() != 0) {
-            std::vector<ShaderBlockVariable>& members = blockvar->struct_info.members;
+            const std::vector<ShaderBlockVariable>& members = blockvar->struct_info.members;
             assert(std::holds_alternative<ShaderStructType>(type->type));
-            ShaderStructType& struct_type = std::get<ShaderStructType>(type->type);
+            const ShaderStructType& struct_type = std::get<ShaderStructType>(type->type);
             assert(members.size() == struct_type.members.size());
             
             // find member with name
             bool found_member = false;
             std::string member_name = get_struct_member_name(addr);
             for(int i = 0; i < members.size(); i++) {
-                ShaderBlockVariable& member = members[i];
+                const ShaderBlockVariable& member = members[i];
                 if(member.name == member_name) {
                     assert(struct_type.members[i].name == member_name);
                     found_member = true;
@@ -277,7 +277,7 @@ UniformToken<T> ProgramInvocation::get_uniform(std::string_view _addr) {
         if(!std::holds_alternative<ShaderVectorType>(type->type)) {
             type_error("vec2");
         }
-        ShaderVectorType& vector_type = std::get<ShaderVectorType>(type->type);
+        const ShaderVectorType& vector_type = std::get<ShaderVectorType>(type->type);
         if(vector_type.base_type != ShaderScalarType::Float || vector_type.dimension != 2) {
             type_error("vec2");
         }
@@ -287,7 +287,7 @@ UniformToken<T> ProgramInvocation::get_uniform(std::string_view _addr) {
         if(!std::holds_alternative<ShaderVectorType>(type->type)) {
             type_error("vec3");
         }
-        ShaderVectorType& vector_type = std::get<ShaderVectorType>(type->type);
+        const ShaderVectorType& vector_type = std::get<ShaderVectorType>(type->type);
         if(vector_type.base_type != ShaderScalarType::Float || vector_type.dimension != 3) {
             type_error("vec3");
         }
@@ -297,7 +297,7 @@ UniformToken<T> ProgramInvocation::get_uniform(std::string_view _addr) {
         if(!std::holds_alternative<ShaderMatrixType>(type->type)) {
             type_error("mat4");
         }
-        ShaderMatrixType& matrix_type = std::get<ShaderMatrixType>(type->type);
+        const ShaderMatrixType& matrix_type = std::get<ShaderMatrixType>(type->type);
         if(
             matrix_type.base_type != ShaderScalarType::Float || 
             matrix_type.rows != 4 || matrix_type.cols != 4
@@ -380,8 +380,8 @@ void ProgramInvocation::validate_resource_bindings() {
     //   that exists in the interface, and that the slot will accept them, so just making sure
     //   the amount of bound resources matches is sufficient.
     ShaderInterface& interface = program.get_interface();
-    assert(bound_resources.size() <= interface.resources.size());
-    if(bound_resources.size() != interface.resources.size()) {
+    assert(bound_resources.size() <= interface.get_resources().size());
+    if(bound_resources.size() != interface.get_resources().size()) {
         engine::util::throw_error("program invocation has unbound resource");
     }
 }
@@ -394,7 +394,7 @@ RenderingProgramInvocation::RenderingProgramInvocation(
     // derive vertex attribute layout from program interface
     // vertex attributes should be input variables to the program
     std::set<uint32_t> used_locations;
-    for(auto& [location, input_var] : program.get_interface().inputs) {
+    for(auto& [location, input_var] : program.get_interface().get_inputs()) {
         uint32_t nr_locations = input_var.nr_locations;
         
         // all locations claimed by this input variable should be unused
@@ -413,13 +413,15 @@ RenderingProgramInvocation::RenderingProgramInvocation(
 }
 
 void RenderingProgramInvocation::bind_vertex_attribute(
-    uint32_t location,
+    std::string_view name,
     Buffer& buffer,
     uint32_t offset,
     uint32_t stride,
     VertexInputRate rate,
     VertexFormat format
 ) {
+    uint32_t location = program.get_interface().get_input_location(std::string(name));
+
     // make sure an attribute exists at location
     if(!attributes.contains(location)) {
         engine::util::throw_error("vertex attribute does not exist at location : " + std::to_string(location));
@@ -468,7 +470,7 @@ void RenderingProgramInvocation::bind_render_target(
 
     // check bound textures against interface
     // make sure all output interface variables have a corresponding output in the target
-    for(const auto& [location, output_var] : program.get_interface().outputs) {
+    for(const auto& [location, output_var] : program.get_interface().get_outputs()) {
         if(!target.has_output(location)) {
             engine::util::throw_error("render target does not have an output for variable : " + output_var.name);
         }

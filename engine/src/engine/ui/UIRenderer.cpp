@@ -58,14 +58,14 @@ UIRenderer::UIRenderer(
         // compositing texture -> blur texture
         blur_invocation_horizontal = blur_program->create_invocation();
         blur_invocation_horizontal->bind_render_target(*blur_target);
-        blur_invocation_horizontal->bind_sampled_texture({0, 1}, *compositing_texture, *default_sampler);
+        blur_invocation_horizontal->bind_sampled_texture("albedo", *compositing_texture, *default_sampler);
         blur_invocation_horizontal->set_uniform("settings.is_vertical", 0);
         blur_invocation_horizontal->do_clear_color(true);
 
         // blur texture -> compositing texture
         blur_invocation_vertical = blur_program->create_invocation();
         blur_invocation_vertical->bind_render_target(*compositing_target);
-        blur_invocation_vertical->bind_sampled_texture({0, 1}, *blur_texture, *default_sampler);
+        blur_invocation_vertical->bind_sampled_texture("albedo", *blur_texture, *default_sampler);
         blur_invocation_vertical->set_uniform("settings.is_vertical", 1);
         blur_invocation_vertical->do_clear_color(false);
         blur_invocation_vertical->do_clipping(true);
@@ -217,7 +217,7 @@ void UIRenderer::draw_blur(Rect2 rect, uint32_t sigma) {
         glm::vec2 uv_dim = rect.dim / target_size;
 
         // background -> blur texture
-        blur_invocation_horizontal->bind_sampled_texture({0, 1}, background, *default_sampler);
+        blur_invocation_horizontal->bind_sampled_texture("albedo", background, *default_sampler);
         blur_invocation_horizontal->set_uniform<glm::vec2>("settings.pos", uv_pos);
         blur_invocation_horizontal->set_uniform<glm::vec2>("settings.dim", uv_dim);
         blur_invocation_horizontal->set_uniform<int>("settings.sigma", sigma);

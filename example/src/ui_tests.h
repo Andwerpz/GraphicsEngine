@@ -274,9 +274,7 @@ inline void test_ui_context() {
 
     auto invocation = program->create_invocation(); 
     invocation->bind_render_target(viewport.get_render_target());
-    invocation->bind_sampled_texture(
-        {0, 0}, *texture, *sampler
-    );
+    invocation->bind_sampled_texture("albedo", *texture, *sampler);
 
     task_loop.add_periodic_task(
         "render_viewport",
@@ -362,7 +360,7 @@ inline void test_ui_context() {
     //     skybox_invocation->bind_render_target(viewport.get_render_target());
 
     //     skybox_invocation->bind_vertex_attribute(
-    //         0,      // location
+    //         "pos",
     //         *cube_vertex_buffer,
     //         0,      // offset
     //         12,     // stride
@@ -370,7 +368,7 @@ inline void test_ui_context() {
     //         engine::graphics::VertexFormat::Float32x3
     //     );
     //     skybox_invocation->bind_vertex_attribute(
-    //         1,      // location
+    //         "normal",
     //         *cube_normal_buffer,
     //         0,      // offset
     //         12,     // stride
@@ -378,7 +376,7 @@ inline void test_ui_context() {
     //         engine::graphics::VertexFormat::Float32x3
     //     );
     //     skybox_invocation->bind_vertex_attribute(
-    //         2,      // location
+    //         "uv",
     //         *cube_uv_buffer,
     //         0,      // offset
     //         8,      // stride
@@ -387,7 +385,7 @@ inline void test_ui_context() {
     //     );
 
     //     skybox_invocation->bind_sampled_texture(
-    //         {0, 1},
+    //         "cubemap",
     //         *skybox,
     //         *sampler
     //     );
@@ -399,7 +397,7 @@ inline void test_ui_context() {
     //     cube_invocation->bind_render_target(viewport.get_render_target());
         
     //     cube_invocation->bind_vertex_attribute(
-    //         0,      // location
+    //         "pos",
     //         *cube_vertex_buffer,
     //         0,      // offset
     //         12,     // stride
@@ -407,7 +405,7 @@ inline void test_ui_context() {
     //         engine::graphics::VertexFormat::Float32x3
     //     );
     //     cube_invocation->bind_vertex_attribute(
-    //         1,      // location
+    //         "normal",
     //         *cube_normal_buffer,
     //         0,      // offset
     //         12,     // stride
@@ -415,7 +413,7 @@ inline void test_ui_context() {
     //         engine::graphics::VertexFormat::Float32x3
     //     );
     //     cube_invocation->bind_vertex_attribute(
-    //         2,      // location
+    //         "uv",
     //         *cube_uv_buffer,
     //         0,      // offset
     //         8,      // stride
@@ -424,7 +422,7 @@ inline void test_ui_context() {
     //     );
 
     //     cube_invocation->bind_sampled_texture(
-    //         {0, 1},
+    //         "albedo",
     //         *texture,
     //         *sampler
     //     );
